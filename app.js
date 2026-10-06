@@ -5,7 +5,7 @@
 //  All data is kept in this browser's local storage.
 // ============================================================
 
-const APP_VERSION = '1.2.1';
+const APP_VERSION = '1.3.0';
 // The reminder service's web address. Reminders are switched off (and hidden
 // in the app) while this is empty. To turn them on, install the service in
 // worker/ on Cloudflare and put its address here.
@@ -93,6 +93,12 @@ function load() {
 
 let state = load();
 let currentDay = dateKey();
+let viewTomorrow = false; // the Today | Tomorrow switch
+
+// The day whose list is on screen.
+function viewDay() {
+  return viewTomorrow ? addDays(currentDay, 1) : currentDay;
+}
 
 function save() {
   try {
@@ -162,10 +168,8 @@ function pendingCarryOver() {
     .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.createdAt - b.createdAt));
 }
 
-// Streak = days in a row where every to-do got done.
-// Days with no to-dos are skipped (they don't break it or add to it).
-// Today only counts once it's complete; an unfinished today doesn't break it yet.
-function computeStreak() {
+// How many to-dos each day had, and how many got done.
+function dayStats() {
   const byDay = new Map();
   for (const i of state.items) {
     if (i.deleted) continue;
@@ -174,20 +178,39 @@ function computeStreak() {
     if (i.done) s.done++;
     byDay.set(i.date, s);
   }
-  const status = (day) => {
-    const s = byDay.get(day);
-    if (!s) return 'empty';
-    return s.done === s.total ? 'complete' : 'incomplete';
-  };
+  return byDay;
+}
 
-  let streak = status(currentDay) === 'complete' ? 1 : 0;
-  const earliest = [...byDay.keys()].sort()[0] || currentDay;
-  for (let day = addDays(currentDay, -1); day >= earliest; day = addDays(day, -1)) {
-    const s = status(day);
-    if (s === 'incomplete') break;
-    if (s === 'complete') streak++;
+// 'complete' = planned something and finished it all; 'partial' = some done;
+// 'missed' = nothing done; 'empty' = nothing planned.
+function dayStatus(day, byDay) {
+  const s = byDay.get(day);
+  if (!s || !s.total) return 'empty';
+  if (s.done === s.total) return 'complete';
+  return s.done > 0 ? 'partial' : 'missed';
+}
+
+// Streak = days in a row where you planned something and finished it all.
+// Every day counts: a skipped or empty day breaks it.
+// Today only counts once it's complete; an unfinished today doesn't break it yet.
+function computeStreak(byDay = dayStats()) {
+  let streak = dayStatus(currentDay, byDay) === 'complete' ? 1 : 0;
+  const first = state.meta.firstUseDate || currentDay;
+  for (let day = addDays(currentDay, -1); day >= first; day = addDays(day, -1)) {
+    if (dayStatus(day, byDay) !== 'complete') break;
+    streak++;
   }
   return streak;
+}
+
+function bestStreak(byDay) {
+  let best = 0, run = 0;
+  const first = state.meta.firstUseDate || currentDay;
+  for (let day = first; day <= currentDay; day = addDays(day, 1)) {
+    if (dayStatus(day, byDay) === 'complete') { run++; best = Math.max(best, run); }
+    else if (day !== currentDay) run = 0;
+  }
+  return best;
 }
 
 // ---------- Actions ----------
@@ -197,7 +220,7 @@ function addItem(text, extra = {}) {
   if (!text) return;
   const guess = guessPriority(state, text, currentDay);
   state.items.push({
-    id: uid(), text, date: currentDay, done: false, doneAt: null,
+    id: uid(), text, date: extra.date || viewDay(), done: false, doneAt: null,
     priority: guess, prioritySource: guess ? 'guess' : null,
     repeatId: null, createdAt: Date.now(), ...extra,
   });
@@ -225,8 +248,10 @@ function toggleDone(id, row) {
   if (item.done) row.classList.add('pop');
   row.querySelector('.check').setAttribute('aria-label', item.done ? `Mark "${item.text}" not done` : `Mark "${item.text}" done`);
   renderHeader();
-  const items = itemsForDay(currentDay);
-  $('all-done').hidden = !(items.length > 0 && items.every((i) => i.done));
+  const items = itemsForDay(viewDay());
+  const allDone = items.length > 0 && items.every((i) => i.done);
+  $('all-done').hidden = !(allDone && !viewTomorrow);
+  if (allDone && item.done && !viewTomorrow) celebrate();
 
   // Wait until you've stopped tapping for a moment, then re-sort.
   clearTimeout(reorderTimer);
@@ -296,18 +321,26 @@ const $ = (id) => document.getElementById(id);
 function render() {
   renderHeader();
   renderInstallTip();
+  renderBackupNudge();
   renderCarryOver();
   renderSuggestions();
   renderList();
 }
 
 function renderHeader() {
-  const d = parseKey(currentDay);
+  const d = parseKey(viewDay());
   $('today-label').textContent = d.toLocaleDateString(undefined, { weekday: 'long' });
   const shortDate = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-  const items = itemsForDay(currentDay);
+  const items = itemsForDay(viewDay());
   const done = items.filter((i) => i.done).length;
-  $('progress').textContent = shortDate + ' · ' + (items.length ? `${done} of ${items.length} done` : 'Nothing planned yet');
+  let summary;
+  if (!items.length) summary = 'Nothing planned yet';
+  else if (viewTomorrow) summary = `${items.length} planned`;
+  else summary = `${done} of ${items.length} done`;
+  $('progress').textContent = shortDate + ' · ' + summary;
+  $('view-today').setAttribute('aria-selected', String(!viewTomorrow));
+  $('view-tomorrow').setAttribute('aria-selected', String(viewTomorrow));
+  $('add-input').placeholder = viewTomorrow ? 'Add something for tomorrow…' : 'Add something for today…';
   const streak = computeStreak();
   $('streak-count').textContent = streak;
   $('streak').classList.toggle('zero', streak === 0);
@@ -327,7 +360,7 @@ function renderInstallTip() {
 }
 
 function renderCarryOver() {
-  const pending = pendingCarryOver();
+  const pending = viewTomorrow ? [] : pendingCarryOver();
   const card = $('carry');
   card.hidden = pending.length === 0;
   if (!pending.length) return;
@@ -361,7 +394,7 @@ function renderCarryOver() {
 const CHECK_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
 function renderList({ animate = false } = {}) {
-  const items = sortedItems(itemsForDay(currentDay));
+  const items = sortedItems(itemsForDay(viewDay()));
   const list = $('list');
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   animate = animate && !reduceMotion;
@@ -434,7 +467,7 @@ function renderList({ animate = false } = {}) {
   }
 
   $('empty').hidden = items.length > 0;
-  $('all-done').hidden = !(items.length > 0 && items.every((i) => i.done));
+  $('all-done').hidden = viewTomorrow || !(items.length > 0 && items.every((i) => i.done));
   $('swipe-hint').hidden = !(items.length > 0 && items.length <= 3);
 }
 
@@ -525,7 +558,7 @@ function openEdit(id) {
     id,
     priority: item.priority || '',
     repeatKind: rule ? rule.kind : '',
-    days: rule && rule.kind === 'weekly' ? [...rule.days] : [parseKey(currentDay).getDay()],
+    days: rule && rule.kind === 'weekly' ? [...rule.days] : [parseKey(item.date).getDay()],
   };
   $('edit-text').value = item.text;
   $('edit-time').value = item.time || '';
@@ -554,7 +587,7 @@ function saveEdit() {
   if (editing.repeatKind) {
     if (!rule || !rule.active) {
       // Start a new repeating rule from this item.
-      rule = { id: uid(), startDate: currentDay, active: true };
+      rule = { id: uid(), startDate: item.date, active: true };
       state.repeats.push(rule);
       item.repeatId = rule.id;
     }
@@ -594,7 +627,7 @@ function setSuggestOpen(open) {
 function renderSuggestions() {
   const card = $('suggest');
   const list = state.profile ? getSuggestions(state, currentDay) : [];
-  const open = suggestCardWanted() && list.length > 0;
+  const open = suggestCardWanted() && list.length > 0 && !viewTomorrow;
   card.hidden = !open;
   const btn = $('open-suggest');
   btn.setAttribute('aria-pressed', String(open));
@@ -635,7 +668,7 @@ function handleSuggestion(sug, accept) {
   if (!s.today || s.today.date !== currentDay) s.today = { date: currentDay, handled: [] };
   s.today.handled.push(sug.key);
   if (accept) {
-    addItem(sug.text, { suggestFrom: sug.source });
+    addItem(sug.text, { suggestFrom: sug.source, date: currentDay });
     showToast('Added to today');
   } else {
     s.dismissed[sug.key] = (s.dismissed[sug.key] || 0) + 1;
@@ -1020,6 +1053,104 @@ function renderTimeField() {
   }
 }
 
+// ---------- Backup nudge ----------
+
+const BACKUP_EVERY_DAYS = 14;
+
+function daysSinceBackup() {
+  const last = state.meta.lastBackupAt ? dateKey(new Date(state.meta.lastBackupAt)) : (state.meta.firstUseDate || currentDay);
+  return dayNumber(currentDay) - dayNumber(last);
+}
+
+function renderBackupNudge() {
+  const due = !viewTomorrow
+    && state.items.filter((i) => !i.deleted).length >= 5
+    && state.meta.backupSnoozeDay !== currentDay
+    && daysSinceBackup() >= BACKUP_EVERY_DAYS;
+  $('backup-nudge').hidden = !due;
+  if (due) {
+    $('nudge-title').textContent = state.meta.lastBackupAt
+      ? `💾 It's been ${daysSinceBackup()} days since your last backup`
+      : '💾 Time to save your first backup';
+  }
+}
+
+// ---------- Celebration (when you finish the whole day) ----------
+
+function celebrate() {
+  const n = computeStreak();
+  setTimeout(() => showToast(n > 1 ? `All done! 🔥 ${n}-day streak` : 'All done for today! 🎉'), 300);
+  const pill = $('streak');
+  pill.classList.remove('bump');
+  void pill.offsetWidth;
+  pill.classList.add('bump');
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches || !document.body.animate) return;
+
+  const colors = ['#e5484d', '#f2a51a', '#3e8eed', '#2f6f5e', '#5fb89e', '#ffd166'];
+  const box = document.createElement('div');
+  box.className = 'confetti';
+  box.setAttribute('aria-hidden', 'true');
+  document.body.appendChild(box);
+  const w = window.innerWidth;
+  for (let k = 0; k < 90; k++) {
+    const piece = document.createElement('i');
+    piece.style.background = colors[k % colors.length];
+    piece.style.left = `${w / 2}px`;
+    if (k % 3 === 0) piece.style.borderRadius = '50%';
+    box.appendChild(piece);
+    const angle = (Math.random() * 140 + 200) * (Math.PI / 180); // mostly upward
+    const power = 220 + Math.random() * 260;
+    const dx = Math.cos(angle) * power;
+    const up = Math.sin(angle) * power;
+    const fall = window.innerHeight * (0.55 + Math.random() * 0.35);
+    piece.animate([
+      { transform: 'translate(0, 0) rotate(0deg)', opacity: 1 },
+      { transform: `translate(${dx * 0.8}px, ${up}px) rotate(${Math.random() * 360}deg)`, opacity: 1, offset: 0.35 },
+      { transform: `translate(${dx}px, ${fall}px) rotate(${Math.random() * 900}deg)`, opacity: 0 },
+    ], { duration: 1600 + Math.random() * 900, easing: 'cubic-bezier(0.2, 0.6, 0.4, 1)', fill: 'forwards' });
+  }
+  setTimeout(() => box.remove(), 2700);
+}
+
+// ---------- Progress panel (tap the streak) ----------
+
+function renderProgress() {
+  const byDay = dayStats();
+  $('stat-streak').textContent = computeStreak(byDay);
+  $('stat-best').textContent = bestStreak(byDay);
+  $('stat-total').textContent = state.items.filter((i) => i.done && !i.deleted).length;
+  let total = 0, done = 0;
+  for (let k = 0; k < 7; k++) {
+    const s = byDay.get(addDays(currentDay, -k));
+    if (s) { total += s.total; done += s.done; }
+  }
+  $('stat-week').textContent = total ? `${Math.round((done / total) * 100)}%` : '–';
+
+  // Weekday letters, starting on Sunday like the iPhone calendar.
+  const head = document.querySelector('.cal-head');
+  head.replaceChildren(...DAY_LETTERS.map((l) => { const s = document.createElement('span'); s.textContent = l; return s; }));
+
+  const cal = $('cal');
+  cal.replaceChildren();
+  const thisSunday = addDays(currentDay, -parseKey(currentDay).getDay());
+  const start = addDays(thisSunday, -28);
+  const first = state.meta.firstUseDate || currentDay;
+  for (let k = 0; k < 35; k++) {
+    const day = addDays(start, k);
+    const cell = document.createElement('span');
+    cell.textContent = parseKey(day).getDate();
+    let cls;
+    if (day > currentDay) cls = 'future';
+    else if (day < first) cls = 'before';
+    else if (day === currentDay) cls = dayStatus(day, byDay) === 'complete' ? 'complete' : 'pending';
+    else cls = dayStatus(day, byDay) === 'empty' ? 'missed' : dayStatus(day, byDay);
+    cell.className = cls + (day === currentDay ? ' today' : '');
+    const label = { complete: 'finished everything', partial: 'partly done', missed: 'missed', pending: 'in progress', future: '', before: '' }[cls];
+    cell.setAttribute('aria-label', parseKey(day).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + (label ? `: ${label}` : ''));
+    cal.appendChild(cell);
+  }
+}
+
 // ---------- Settings panel ----------
 
 function renderRepeatList() {
@@ -1066,6 +1197,7 @@ async function exportBackup() {
   try {
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
       await navigator.share({ files: [file], title: 'Today backup' });
+      backupDone();
       return;
     }
   } catch (e) {
@@ -1079,6 +1211,14 @@ async function exportBackup() {
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 5000);
+  backupDone();
+}
+
+function backupDone() {
+  state.meta.lastBackupAt = Date.now();
+  save();
+  render();
+  showToast('Backup saved 👍');
 }
 
 function importBackup(file) {
@@ -1110,6 +1250,7 @@ function closeSheets() {
   $('edit-backdrop').hidden = true;
   $('edit-sheet').hidden = true;
   $('settings-sheet').hidden = true;
+  $('progress-sheet').hidden = true;
   editing = null;
   if (document.activeElement) document.activeElement.blur();
 }
@@ -1130,9 +1271,22 @@ function hideToast() { $('toast').hidden = true; }
 // ---------- Daily check (runs on open and when the day changes) ----------
 
 function runDailyCheck() {
+  const previousDay = currentDay;
   currentDay = dateKey();
+  if (currentDay !== previousDay) viewTomorrow = false;
   if (!state.meta.firstUseDate) state.meta.firstUseDate = currentDay;
-  const added = addRepeatItemsFor(currentDay);
+  let added = false;
+  // Fill in repeating to-dos for days the app wasn't opened, so those days
+  // still count (as missed) instead of looking like nothing was planned.
+  const last = state.meta.lastOpenDate;
+  if (last && last < currentDay) {
+    let day = addDays(last, 1);
+    const floor = addDays(currentDay, -60);
+    if (day < floor) day = floor;
+    for (; day < currentDay; day = addDays(day, 1)) if (addRepeatItemsFor(day)) added = true;
+  }
+  if (addRepeatItemsFor(currentDay)) added = true;
+  if (viewTomorrow && addRepeatItemsFor(addDays(currentDay, 1))) added = true;
   if (added || state.meta.lastOpenDate !== currentDay) {
     state.meta.lastOpenDate = currentDay;
     save();
@@ -1189,6 +1343,19 @@ $('carry-drop-all').addEventListener('click', () => {
   save(); render();
 });
 
+function setView(tomorrow) {
+  if (viewTomorrow === tomorrow) return;
+  viewTomorrow = tomorrow;
+  if (tomorrow && addRepeatItemsFor(addDays(currentDay, 1))) save();
+  render();
+}
+$('view-today').addEventListener('click', () => setView(false));
+$('view-tomorrow').addEventListener('click', () => setView(true));
+$('streak').addEventListener('click', () => { renderProgress(); openSheet('progress-sheet'); });
+$('progress-close').addEventListener('click', closeSheets);
+$('nudge-save').addEventListener('click', exportBackup);
+$('nudge-later').addEventListener('click', () => { state.meta.backupSnoozeDay = currentDay; save(); render(); });
+
 $('dismiss-tip').addEventListener('click', () => { state.meta.tipDismissed = true; save(); render(); });
 
 $('open-settings').addEventListener('click', () => { renderRepeatList(); renderProfileSummary(); renderReminderSettings(); openSheet('settings-sheet'); });
@@ -1201,6 +1368,7 @@ $('edit-time').addEventListener('change', renderTimeField);
 $('edit-time-clear').addEventListener('click', () => { $('edit-time').value = ''; renderTimeField(); });
 $('edit-profile').addEventListener('click', () => { closeSheets(); openOnboarding(); });
 $('open-suggest').addEventListener('click', () => {
+  if (viewTomorrow) { viewTomorrow = false; suggestOpen = null; render(); }
   if (suggestCardWanted() && !$('suggest').hidden) { setSuggestOpen(false); return; }
   if (getSuggestions(state, currentDay).length) { setSuggestOpen(true); return; }
   const p = state.profile;

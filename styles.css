@@ -387,3 +387,60 @@ main { padding: 0 16px calc(env(safe-area-inset-bottom) + 40px); max-width: 640p
   margin-top: 8px; padding: 8px 12px; border-radius: 10px;
   background: var(--surface-2); font-size: 14px; color: var(--muted);
 }
+
+/* ---------- Today | Tomorrow switch ---------- */
+.day-switch {
+  display: flex; gap: 3px; padding: 3px; margin: 12px auto 0; max-width: 608px;
+  background: rgba(0, 0, 0, 0.16); border-radius: 11px;
+}
+.day-switch button {
+  flex: 1; border: 0; background: transparent; color: rgba(255, 255, 255, 0.85);
+  border-radius: 8px; padding: 7px 0; font-size: 15px; font-weight: 600;
+}
+.day-switch button[aria-selected="true"] { background: #fff; color: #2f6f5e; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15); }
+.add-form { margin-top: 10px; }
+
+/* ---------- Streak pill is a button now ---------- */
+button.streak { border: 0; font-family: inherit; line-height: inherit; }
+button.streak:active { transform: scale(0.94); }
+.streak.bump { animation: bump 0.7s cubic-bezier(0.3, 1.6, 0.5, 1); }
+@keyframes bump {
+  0% { transform: scale(1); }
+  35% { transform: scale(1.35); background: rgba(255, 255, 255, 0.4); }
+  100% { transform: scale(1); }
+}
+
+/* ---------- Confetti ---------- */
+.confetti { position: fixed; inset: 0; pointer-events: none; z-index: 40; overflow: hidden; }
+.confetti i {
+  position: absolute; top: 38%; width: 8px; height: 12px; border-radius: 2px;
+}
+
+/* ---------- Backup nudge ---------- */
+.nudge { border-left: 4px solid var(--med); }
+.nudge p { margin: 4px 0 10px; }
+.nudge-actions { display: flex; justify-content: flex-end; gap: 8px; }
+
+/* ---------- Progress panel ---------- */
+.stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+.stat { background: var(--surface-2); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; }
+.stat-num { font-size: 26px; font-weight: 700; letter-spacing: -0.02em; }
+.stat-label { font-size: 13px; color: var(--muted); }
+.cal-head, .cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+.cal-head span { text-align: center; font-size: 12px; color: var(--muted); padding-bottom: 2px; }
+.cal span {
+  aspect-ratio: 1; border-radius: 9px; display: grid; place-items: center;
+  font-size: 13px; font-weight: 600; background: var(--surface-2); color: var(--muted);
+}
+.cal .complete { background: var(--accent); color: var(--accent-text); }
+.cal .partial { background: color-mix(in srgb, var(--accent) 30%, var(--surface-2)); color: var(--text); }
+.cal .missed { background: color-mix(in srgb, var(--danger) 22%, var(--surface-2)); color: var(--text); }
+.cal .future, .cal .before { background: transparent; opacity: 0.45; }
+.cal .pending { background: var(--surface-2); color: var(--text); }
+.cal .today { box-shadow: 0 0 0 2px var(--text); }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 12px 0 4px; font-size: 13px; color: var(--muted); }
+.legend span { display: flex; align-items: center; gap: 6px; }
+.sw { width: 12px; height: 12px; border-radius: 4px; display: inline-block; }
+.sw.complete { background: var(--accent); }
+.sw.partial { background: color-mix(in srgb, var(--accent) 30%, var(--surface-2)); }
+.sw.missed { background: color-mix(in srgb, var(--danger) 22%, var(--surface-2)); }

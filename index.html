@@ -67,9 +67,9 @@
         <p id="progress" class="muted"></p>
       </div>
       <div class="top-actions">
-        <div id="streak" class="streak" title="Days in a row you finished everything">
+        <button id="streak" class="streak" title="Your progress">
           <span aria-hidden="true">🔥</span><span id="streak-count">0</span>
-        </div>
+        </button>
         <button id="open-suggest" class="icon-btn bulb-btn" aria-label="Suggestions" aria-pressed="false">
           <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.6 10.8c.6.5 1 1.2 1.1 2V16h5v-.2c.1-.8.5-1.5 1.1-2A6 6 0 0 0 12 3z"/></svg>
           <span id="suggest-badge" class="badge" hidden></span>
@@ -78,6 +78,10 @@
           <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
         </button>
       </div>
+    </div>
+    <div class="day-switch" role="tablist" aria-label="Which day">
+      <button type="button" role="tab" id="view-today" aria-selected="true">Today</button>
+      <button type="button" role="tab" id="view-tomorrow" aria-selected="false">Tomorrow</button>
     </div>
     <form id="add-form" class="add-form" autocomplete="off">
       <input id="add-input" type="text" placeholder="Add something for today…" enterkeyhint="done" maxlength="200" aria-label="New to-do">
@@ -90,6 +94,15 @@
       <strong>Install this app</strong>
       <p>Tap <b>Share</b> <span class="share-glyph" aria-hidden="true">⬆︎</span> at the bottom of Safari, then <b>Add to Home Screen</b>. Open it from the new icon.</p>
       <button class="link-btn" id="dismiss-tip">Got it</button>
+    </section>
+
+    <section id="backup-nudge" class="card nudge" hidden>
+      <strong id="nudge-title"></strong>
+      <p class="muted small">Your to-dos live only on this phone. Save a copy to iCloud Drive or Files so you can't lose them.</p>
+      <div class="nudge-actions">
+        <button class="btn ghost" id="nudge-later">Later</button>
+        <button class="btn primary" id="nudge-save">Save now</button>
+      </div>
     </section>
 
     <section id="carry" class="card carry" hidden>
@@ -212,6 +225,29 @@
     <button class="btn danger-soft" id="erase-btn">Erase all data</button>
 
     <p class="muted small version">Version <span id="version"></span></p>
+  </section>
+
+  <!-- Progress panel (tap the streak) -->
+  <section id="progress-sheet" class="sheet" role="dialog" aria-modal="true" aria-labelledby="progress-title" hidden>
+    <div class="sheet-head">
+      <h2 id="progress-title">Your progress</h2>
+      <button class="link-btn" id="progress-close">Done</button>
+    </div>
+    <div class="stats">
+      <div class="stat"><span class="stat-num" id="stat-streak">0</span><span class="stat-label">Current streak</span></div>
+      <div class="stat"><span class="stat-num" id="stat-best">0</span><span class="stat-label">Best streak</span></div>
+      <div class="stat"><span class="stat-num" id="stat-week">–</span><span class="stat-label">Done this week</span></div>
+      <div class="stat"><span class="stat-num" id="stat-total">0</span><span class="stat-label">To-dos finished</span></div>
+    </div>
+    <h3>Last 5 weeks</h3>
+    <div class="cal-head" aria-hidden="true"></div>
+    <div class="cal" id="cal"></div>
+    <div class="legend">
+      <span><i class="sw complete"></i>Finished everything</span>
+      <span><i class="sw partial"></i>Partly done</span>
+      <span><i class="sw missed"></i>Missed</span>
+    </div>
+    <p class="muted small">A day counts toward your streak when you plan at least one to-do and finish all of them. Days you skip or leave empty break it.</p>
   </section>
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden>
