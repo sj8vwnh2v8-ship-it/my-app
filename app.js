@@ -5,7 +5,7 @@
 //  All data is kept in this browser's local storage.
 // ============================================================
 
-const APP_VERSION = '1.16.0';
+const APP_VERSION = '1.16.1';
 // The reminder service's web address. Reminders are switched off (and hidden
 // in the app) while this is empty. To turn them on, install the service in
 // worker/ on Cloudflare and put its address here.
@@ -1630,60 +1630,9 @@ function playSound(kind) {
       osc.stop(t0 + start + length + 0.02);
     };
     if (kind === 'check') tone(660, 0, 0.13, 0.16, 990);                    // soft pop
-    if (kind === 'complete') {                                              // little chime + warm crackle
-      [1047, 1319, 1568].forEach((f, k) => tone(f, k * 0.09, 0.32, 0.11));
-      crackle(audioCtx, t0 + 0.05, 1.6, 0.8, audioCtx.destination);
-    }
-    if (kind === 'milestone') {                                             // brighter chord + fuller crackle
-      [784, 988, 1175, 1568].forEach((f, k) => tone(f, k * 0.11, 0.5, 0.12));
-      crackle(audioCtx, t0, 3.6, 1.2, audioCtx.destination);
-    }
-    if (kind === 'flicker') crackle(audioCtx, t0, 0.6, 0.6, audioCtx.destination); // quick crackle
+    if (kind === 'complete') [1047, 1319, 1568].forEach((f, k) => tone(f, k * 0.09, 0.32, 0.11)); // little chime
+    if (kind === 'milestone') [784, 988, 1175, 1568].forEach((f, k) => tone(f, k * 0.11, 0.5, 0.12));
   } catch (e) { /* no sound available */ }
-}
-
-// A soft fire crackle, made from noise rather than a recording: a low
-// warm rumble plus random little pops and snaps, like logs settling.
-function crackle(ctx, start, seconds, intensity, destination) {
-  const rate = ctx.sampleRate;
-  const n = Math.floor(seconds * rate);
-  const fade = (i) => Math.min(1, i / (0.12 * rate), (n - i) / (0.35 * rate)); // gentle in and out
-
-  // The rumble: smoothed ("brown") noise.
-  const bed = ctx.createBuffer(1, n, rate);
-  const b = bed.getChannelData(0);
-  let last = 0;
-  for (let i = 0; i < n; i++) {
-    last = (last + 0.02 * (Math.random() * 2 - 1)) / 1.02;
-    b[i] = last * 3.2 * fade(i);
-  }
-
-  // The pops: short bursts at random moments, some loud, most quiet.
-  const pops = ctx.createBuffer(1, n, rate);
-  const p = pops.getChannelData(0);
-  const count = Math.round(seconds * 16 * intensity);
-  for (let k = 0; k < count; k++) {
-    const at = Math.floor(Math.random() * n);
-    const len = Math.floor(rate * (0.002 + Math.random() * 0.012));
-    const loud = Math.random() < 0.15 ? 0.9 : 0.15 + Math.random() * 0.35;
-    for (let j = 0; j < len && at + j < n; j++) {
-      p[at + j] += (Math.random() * 2 - 1) * loud * Math.exp(-j / (len / 4)) * fade(at + j);
-    }
-  }
-
-  const play = (buffer, filterType, freq, volume) => {
-    const src = ctx.createBufferSource();
-    src.buffer = buffer;
-    const filter = ctx.createBiquadFilter();
-    filter.type = filterType;
-    filter.frequency.value = freq;
-    const gain = ctx.createGain();
-    gain.gain.value = volume;
-    src.connect(filter).connect(gain).connect(destination);
-    src.start(start);
-  };
-  play(bed, 'lowpass', 420, 0.22 * intensity);
-  play(pops, 'highpass', 900, 0.32 * intensity);
 }
 
 // ---------- Weekly recap (Sundays) ----------
@@ -2126,7 +2075,7 @@ $('wrapup-all').addEventListener('click', () => {
   afterWrapUp(`Moved ${items.length} to tomorrow`, undo);
 });
 $('view-tomorrow').addEventListener('click', () => setView(true));
-$('streak').addEventListener('click', () => { playSound('flicker'); renderProgress(); openSheet('progress-sheet'); });
+$('streak').addEventListener('click', () => { renderProgress(); openSheet('progress-sheet'); });
 $('progress-close').addEventListener('click', closeSheets);
 $('how-streaks').addEventListener('click', () => {
   const open = $('how-list').hidden;
