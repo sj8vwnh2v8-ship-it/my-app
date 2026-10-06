@@ -264,21 +264,25 @@
       <div class="stat"><span class="stat-num" id="stat-streak">0</span><span class="stat-label">Current streak</span></div>
       <div class="stat"><span class="stat-num" id="stat-best">0</span><span class="stat-label">Best streak</span></div>
       <div class="stat"><span class="stat-num" id="stat-week">–</span><span class="stat-label">Done this week</span></div>
-      <div class="stat"><span class="stat-num" id="stat-total">0</span><span class="stat-label">To-dos finished</span></div>
+      <div class="stat"><span class="stat-num" id="stat-freezes">0</span><span class="stat-label">❄️ Freezes saved</span></div>
     </div>
     <h3>Last 5 weeks</h3>
     <div class="cal-head" aria-hidden="true"></div>
     <div class="cal" id="cal"></div>
     <div class="legend">
-      <span><i class="sw complete"></i>Finished everything</span>
-      <span><i class="sw partial"></i>Partly done</span>
+      <span><i class="sw complete"></i>Done</span>
+      <span><i class="sw partial"></i>Partly</span>
       <span><i class="sw missed"></i>Missed</span>
-      <span><i class="sw frozen"></i>Saved by a freeze</span>
-      <span><i class="sw rest"></i>Rest day</span>
+      <span><i class="sw frozen"></i>Freeze</span>
+      <span><i class="sw rest"></i>Rest</span>
     </div>
-    <p class="muted small">A day counts toward your streak when you plan at least one to-do and finish all of them. Days you skip or leave empty break it, unless a freeze saves you.</p>
-    <p class="small" id="freeze-line"></p>
-    <p class="muted small">😴 Need a day off? Switch to <b>Tomorrow</b> and tap <b>Rest day</b> (1 per week).</p>
+    <button class="link-btn how-link" id="how-streaks" aria-expanded="false">How streaks work</button>
+    <ul class="how-list" id="how-list" hidden>
+      <li>Finish everything you planned → +1 day</li>
+      <li>Skip a day or leave it empty → streak resets</li>
+      <li>❄️ Every 7 days in a row earns a freeze (max 2). It's used automatically if you miss a day</li>
+      <li>😴 1 rest day a week, set from <b>Tomorrow</b></li>
+    </ul>
   </section>
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden>

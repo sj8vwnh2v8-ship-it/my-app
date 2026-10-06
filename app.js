@@ -5,7 +5,7 @@
 //  All data is kept in this browser's local storage.
 // ============================================================
 
-const APP_VERSION = '1.8.0';
+const APP_VERSION = '1.8.1';
 // The reminder service's web address. Reminders are switched off (and hidden
 // in the app) while this is empty. To turn them on, install the service in
 // worker/ on Cloudflare and put its address here.
@@ -1210,8 +1210,10 @@ function renderProgress() {
   const info = streakInfo(byDay);
   $('stat-streak').textContent = info.streak;
   $('stat-best').textContent = info.best;
-  $('freeze-line').textContent = `❄️ Freezes saved: ${info.freezes} of ${FREEZE_MAX}. You earn one for every ${FREEZE_EVERY} finished days in a row, and it's used automatically if you miss a day.`;
-  $('stat-total').textContent = state.items.filter((i) => i.done && !i.deleted).length;
+  $('stat-freezes').textContent = `${info.freezes}/${FREEZE_MAX}`;
+  $('how-list').hidden = true;
+  $('how-streaks').textContent = 'How streaks work';
+  $('how-streaks').setAttribute('aria-expanded', 'false');
   let total = 0, done = 0;
   for (let k = 0; k < 7; k++) {
     const s = byDay.get(addDays(currentDay, -k));
@@ -1505,6 +1507,13 @@ $('view-today').addEventListener('click', () => setView(false));
 $('view-tomorrow').addEventListener('click', () => setView(true));
 $('streak').addEventListener('click', () => { renderProgress(); openSheet('progress-sheet'); });
 $('progress-close').addEventListener('click', closeSheets);
+$('how-streaks').addEventListener('click', () => {
+  const open = $('how-list').hidden;
+  $('how-list').hidden = !open;
+  $('how-streaks').setAttribute('aria-expanded', String(open));
+  $('how-streaks').textContent = open ? 'Hide' : 'How streaks work';
+  if (open) $('how-list').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+});
 $('nudge-save').addEventListener('click', exportBackup);
 $('nudge-later').addEventListener('click', () => { state.meta.backupSnoozeDay = currentDay; save(); render(); });
 
