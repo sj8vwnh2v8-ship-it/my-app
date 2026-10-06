@@ -5,7 +5,7 @@
 //  All data is kept in this browser's local storage.
 // ============================================================
 
-const APP_VERSION = '1.0.0';
+const APP_VERSION = '1.0.1';
 const STORE_KEY = 'today-app-data';
 const PRIORITY_RANK = { high: 0, med: 1, low: 2 };
 const PRIORITY_LABEL = { high: 'High', med: 'Medium', low: 'Low' };
@@ -179,13 +179,52 @@ function addItem(text) {
   render();
 }
 
-function toggleDone(id) {
+// Checking an item off happens in two steps so it feels like a button:
+// first the circle pops and fills right where you tapped, then a moment
+// later the list re-sorts and the item glides to its new spot.
+let reorderTimer = null;
+
+function toggleDone(id, row) {
   const item = state.items.find((i) => i.id === id);
   if (!item) return;
   item.done = !item.done;
   item.doneAt = item.done ? Date.now() : null;
   save();
-  render();
+  if (item.done) haptic();
+
+  if (!row) { render(); return; }
+  row.classList.toggle('done', item.done);
+  row.classList.remove('pop');
+  void row.offsetWidth; // restart the pop animation
+  if (item.done) row.classList.add('pop');
+  row.querySelector('.check').setAttribute('aria-label', item.done ? `Mark "${item.text}" not done` : `Mark "${item.text}" done`);
+  renderHeader();
+  const items = itemsForDay(currentDay);
+  $('all-done').hidden = !(items.length > 0 && items.every((i) => i.done));
+
+  // Wait until you've stopped tapping for a moment, then re-sort.
+  clearTimeout(reorderTimer);
+  reorderTimer = setTimeout(() => { reorderTimer = null; renderList({ animate: true }); }, 650);
+}
+
+// A tiny vibration on check-off. iPhones don't support the normal web
+// vibration feature, but on iOS 18+ toggling a hidden "switch" gives a tap.
+function haptic() {
+  try {
+    if (navigator.vibrate) { navigator.vibrate(12); return; }
+    if (!isIOS()) return;
+    const input = document.createElement('input');
+    input.type = 'checkbox';
+    input.setAttribute('switch', '');
+    input.id = 'haptic-switch';
+    const label = document.createElement('label');
+    label.htmlFor = input.id;
+    input.style.display = label.style.display = 'none';
+    document.body.append(input, label);
+    label.click();
+    input.remove();
+    label.remove();
+  } catch (e) { /* no vibration available; that's fine */ }
 }
 
 function deleteItem(id, { stopRepeating = false } = {}) {
@@ -292,14 +331,21 @@ function renderCarryOver() {
 
 const CHECK_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
-function renderList() {
+function renderList({ animate = false } = {}) {
   const items = sortedItems(itemsForDay(currentDay));
   const list = $('list');
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  animate = animate && !reduceMotion;
+
+  // Remember where each item was, so moved items can glide to their new spot.
+  const oldTops = new Map();
+  if (animate) for (const el of list.children) oldTops.set(el.dataset.id, el.getBoundingClientRect().top);
   list.replaceChildren();
 
   for (const item of items) {
     const wrap = document.createElement('li');
     wrap.className = 'item-wrap';
+    wrap.dataset.id = item.id;
     const label = document.createElement('span');
     label.className = 'swipe-label';
     label.textContent = 'Delete';
@@ -311,7 +357,7 @@ function renderList() {
     check.className = 'check';
     check.innerHTML = CHECK_SVG;
     check.setAttribute('aria-label', item.done ? `Mark "${item.text}" not done` : `Mark "${item.text}" done`);
-    check.addEventListener('click', () => toggleDone(item.id));
+    check.addEventListener('click', () => toggleDone(item.id, row));
 
     const body = document.createElement('button');
     body.className = 'item-body';
@@ -343,6 +389,17 @@ function renderList() {
     wrap.append(label, row);
     enableSwipe(row, item);
     list.appendChild(wrap);
+  }
+
+  if (animate && list.animate) {
+    for (const el of list.children) {
+      const old = oldTops.get(el.dataset.id);
+      if (old === undefined) continue;
+      const dy = old - el.getBoundingClientRect().top;
+      if (Math.abs(dy) < 1) continue;
+      el.animate([{ transform: `translateY(${dy}px)` }, { transform: 'none' }],
+        { duration: 380, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' });
+    }
   }
 
   $('empty').hidden = items.length > 0;

@@ -145,16 +145,36 @@ main { padding: 4px 16px calc(env(safe-area-inset-bottom) + 40px); max-width: 64
 .item.p-low::before { background: var(--low); }
 
 .check {
+  position: relative;
   width: 28px; height: 28px; flex: none; border-radius: 50%;
   border: 2px solid var(--none); background: transparent; padding: 0;
   display: grid; place-items: center;
+  transition: transform 0.12s ease, background-color 0.2s ease, border-color 0.2s ease;
 }
+/* Bigger invisible tap area around the circle */
+.check::after { content: ""; position: absolute; inset: -10px; border-radius: 50%; }
+/* Press-down feel while your finger is on it */
+.check:active { transform: scale(0.8); }
 .item.p-high .check { border-color: var(--high); }
 .item.p-med .check { border-color: var(--med); }
 .item.p-low .check { border-color: var(--low); }
-.check svg { width: 16px; height: 16px; stroke: var(--accent-text); stroke-width: 3; fill: none; opacity: 0; }
+.check svg { width: 16px; height: 16px; stroke: var(--accent-text); stroke-width: 3; fill: none; }
+/* The checkmark "draws" itself in */
+.check svg path { stroke-dasharray: 22; stroke-dashoffset: 22; transition: stroke-dashoffset 0.25s ease 0.08s; }
 .item.done .check { background: var(--accent); border-color: var(--accent); }
-.item.done .check svg { opacity: 1; }
+.item.done .check svg path { stroke-dashoffset: 0; }
+.item.pop .check { animation: pop 0.38s cubic-bezier(0.3, 1.6, 0.5, 1); }
+@keyframes pop {
+  0% { transform: scale(0.8); }
+  55% { transform: scale(1.2); }
+  100% { transform: scale(1); }
+}
+.item-text { transition: color 0.25s ease; }
+
+@media (prefers-reduced-motion: reduce) {
+  .item.pop .check { animation: none; }
+  .check svg path { transition: none; }
+}
 
 .item-body { flex: 1; min-width: 0; background: none; border: 0; text-align: left; padding: 4px 0; }
 .item-text { display: block; overflow-wrap: anywhere; }
