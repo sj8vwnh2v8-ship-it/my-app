@@ -5,7 +5,7 @@
 //  All data is kept in this browser's local storage.
 // ============================================================
 
-const APP_VERSION = '1.4.0';
+const APP_VERSION = '1.5.0';
 // The reminder service's web address. Reminders are switched off (and hidden
 // in the app) while this is empty. To turn them on, install the service in
 // worker/ on Cloudflare and put its address here.
@@ -1086,7 +1086,7 @@ function celebrate() {
   pill.classList.add('bump');
   if (window.matchMedia('(prefers-reduced-motion: reduce)').matches || !document.body.animate) return;
 
-  const colors = ['#e5484d', '#f2a51a', '#3e8eed', '#2f6f5e', '#5fb89e', '#ffd166'];
+  const colors = ['#ff8a3d', '#e2622a', '#ffd166', '#ffb347', '#e5484d', '#fff4e6'];
   const box = document.createElement('div');
   box.className = 'confetti';
   box.setAttribute('aria-hidden', 'true');

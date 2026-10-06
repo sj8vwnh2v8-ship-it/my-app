@@ -1,36 +1,44 @@
 :root {
-  --bg: #f6f6f3;
+  /* "Night glow" theme: charcoal + ember orange, to match the icon */
+  --bg: #f6f4f1;
   --surface: #ffffff;
-  --surface-2: #efefeb;
+  --surface-2: #efebe6;
   --text: #1c1c1e;
   --muted: #6e6e73;
-  --border: #e3e3de;
-  --accent: #2f6f5e;
+  --border: #e4ded7;
+  --accent: #e2622a;
   --accent-text: #ffffff;
   --danger: #d1344a;
   --high: #e5484d;
   --med: #f2a51a;
   --low: #3e8eed;
   --none: #c9c9c4;
+  --missed: #c9c4be;
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.05), 0 2px 8px rgba(0, 0, 0, 0.04);
   --radius: 14px;
-  --header-bg: #2f6f5e;
+  --header-bg: radial-gradient(130% 150% at 88% -10%, rgba(255, 138, 61, 0.75) 0%, rgba(217, 69, 43, 0.35) 32%, rgba(31, 33, 38, 0) 62%), #1f2126; /* can be a color or a gradient */
+  --header-solid: #1f2126;  /* a plain color close to the header */
+  --header-ink: #c9541f;    /* text on white buttons inside the header */
+  --toast-link: #ffb27a;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #161617;
-    --surface: #222224;
-    --surface-2: #2c2c2f;
+    --bg: #111214;
+    --surface: #1c1d21;
+    --surface-2: #26272c;
     --text: #f2f2f2;
     --muted: #9a9aa0;
-    --border: #333336;
-    --accent: #5fb89e;
-    --accent-text: #0f1f1a;
+    --border: #2f3036;
+    --accent: #ff8a4c;
+    --accent-text: #1b1210;
     --danger: #ff6b7d;
     --none: #4a4a4e;
+    --missed: #3d3e44;
     --shadow: none;
-    --header-bg: #24584a;
+    --header-bg: radial-gradient(130% 150% at 88% -10%, rgba(255, 138, 61, 0.55) 0%, rgba(217, 69, 43, 0.28) 32%, rgba(27, 29, 34, 0) 62%), #1b1d22;
+    --header-solid: #1b1d22;
+    --header-ink: #c9541f;
   }
 }
 
@@ -277,7 +285,7 @@ main { padding: 0 16px calc(env(safe-area-inset-bottom) + 40px); max-width: 640p
   display: flex; justify-content: space-between; align-items: center; gap: 12px;
   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25); font-size: 15px;
 }
-.toast .link-btn { color: #8fd8c2; }
+.toast .link-btn { color: var(--toast-link); }
 @media (prefers-color-scheme: dark) { .toast { background: #3a3a3d; } }
 
 /* ---------- Guessed priority colors ---------- */
@@ -360,7 +368,7 @@ main { padding: 0 16px calc(env(safe-area-inset-bottom) + 40px); max-width: 640p
   position: absolute; top: -3px; right: -5px;
   min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px;
   background: #f2a51a; color: #1c1c1e; font-size: 12px; font-weight: 700; line-height: 18px; text-align: center;
-  box-shadow: 0 0 0 2px var(--header-bg);
+  box-shadow: 0 0 0 2px var(--header-solid);
 }
 .suggest-head { display: flex; justify-content: space-between; align-items: center; }
 .top-actions { gap: 2px; }
@@ -397,7 +405,7 @@ main { padding: 0 16px calc(env(safe-area-inset-bottom) + 40px); max-width: 640p
   flex: 1; border: 0; background: transparent; color: rgba(255, 255, 255, 0.85);
   border-radius: 8px; padding: 7px 0; font-size: 15px; font-weight: 600;
 }
-.day-switch button[aria-selected="true"] { background: #fff; color: #2f6f5e; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15); }
+.day-switch button[aria-selected="true"] { background: #fff; color: var(--header-ink); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15); }
 .add-form { margin-top: 10px; }
 
 /* ---------- Streak pill is a button now ---------- */
@@ -434,7 +442,7 @@ button.streak:active { transform: scale(0.94); }
 }
 .cal .complete { background: var(--accent); color: var(--accent-text); }
 .cal .partial { background: color-mix(in srgb, var(--accent) 30%, var(--surface-2)); color: var(--text); }
-.cal .missed { background: color-mix(in srgb, var(--danger) 22%, var(--surface-2)); color: var(--text); }
+.cal .missed { background: var(--missed); color: var(--text); }
 .cal .future, .cal .before { background: transparent; opacity: 0.45; }
 .cal .pending { background: var(--surface-2); color: var(--text); }
 .cal .today { box-shadow: 0 0 0 2px var(--text); }
@@ -443,4 +451,4 @@ button.streak:active { transform: scale(0.94); }
 .sw { width: 12px; height: 12px; border-radius: 4px; display: inline-block; }
 .sw.complete { background: var(--accent); }
 .sw.partial { background: color-mix(in srgb, var(--accent) 30%, var(--surface-2)); }
-.sw.missed { background: color-mix(in srgb, var(--danger) 22%, var(--surface-2)); }
+.sw.missed { background: var(--missed); }
