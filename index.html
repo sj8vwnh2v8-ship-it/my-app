@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Today</title>
+  <meta name="description" content="A simple to-do list for today.">
+  <meta name="theme-color" content="#f6f6f3" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#161617" media="(prefers-color-scheme: dark)">
+  <!-- iPhone home-screen app settings -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Today">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="top">
+    <div class="top-row">
+      <div>
+        <h1 id="today-label">Today</h1>
+        <p id="progress" class="muted"></p>
+      </div>
+      <div class="top-actions">
+        <div id="streak" class="streak" title="Days in a row you finished everything">
+          <span aria-hidden="true">🔥</span><span id="streak-count">0</span>
+        </div>
+        <button id="open-settings" class="icon-btn" aria-label="Settings">
+          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
+        </button>
+      </div>
+    </div>
+    <form id="add-form" class="add-form" autocomplete="off">
+      <input id="add-input" type="text" placeholder="Add something for today…" enterkeyhint="done" maxlength="200" aria-label="New to-do">
+      <button type="submit" class="add-btn" aria-label="Add">+</button>
+    </form>
+  </header>
+
+  <main>
+    <section id="install-tip" class="card tip" hidden>
+      <strong>Install this app</strong>
+      <p>Tap <b>Share</b> <span class="share-glyph" aria-hidden="true">⬆︎</span> at the bottom of Safari, then <b>Add to Home Screen</b>. Open it from the new icon.</p>
+      <button class="link-btn" id="dismiss-tip">Got it</button>
+    </section>
+
+    <section id="carry" class="card carry" hidden>
+      <div class="carry-head">
+        <strong id="carry-title"></strong>
+        <p class="muted">Bring them into today?</p>
+      </div>
+      <ul id="carry-list" class="carry-list"></ul>
+      <div class="carry-actions">
+        <button class="btn ghost" id="carry-drop-all">Drop all</button>
+        <button class="btn primary" id="carry-bring-all">Bring all</button>
+      </div>
+    </section>
+
+    <ul id="list" class="list" aria-label="Today's to-dos"></ul>
+
+    <div id="empty" class="empty" hidden>
+      <p class="empty-big">Nothing here yet</p>
+      <p class="muted">Type above to add your first to-do.</p>
+    </div>
+
+    <p id="all-done" class="all-done" hidden>Everything's done for today. Nice work.</p>
+    <p class="hint muted" id="swipe-hint" hidden>Tip: tap an item to edit it, or swipe it left to delete.</p>
+  </main>
+
+  <!-- Edit panel -->
+  <div id="edit-backdrop" class="backdrop" hidden></div>
+  <section id="edit-sheet" class="sheet" role="dialog" aria-modal="true" aria-labelledby="edit-title" hidden>
+    <div class="sheet-head">
+      <h2 id="edit-title">Edit</h2>
+      <button class="link-btn" id="edit-cancel">Cancel</button>
+    </div>
+    <label class="field-label" for="edit-text">To-do</label>
+    <input id="edit-text" type="text" maxlength="200">
+
+    <span class="field-label">Priority</span>
+    <div class="seg" id="edit-priority" role="radiogroup" aria-label="Priority">
+      <button type="button" data-value="" role="radio">None</button>
+      <button type="button" data-value="high" role="radio"><i class="dot high"></i>High</button>
+      <button type="button" data-value="med" role="radio"><i class="dot med"></i>Med</button>
+      <button type="button" data-value="low" role="radio"><i class="dot low"></i>Low</button>
+    </div>
+
+    <span class="field-label">Repeat</span>
+    <div class="seg" id="edit-repeat" role="radiogroup" aria-label="Repeat">
+      <button type="button" data-value="" role="radio">Never</button>
+      <button type="button" data-value="daily" role="radio">Daily</button>
+      <button type="button" data-value="weekly" role="radio">Weekly</button>
+    </div>
+    <div id="edit-days" class="days" hidden></div>
+    <p id="repeat-note" class="muted small" hidden></p>
+
+    <div class="sheet-actions">
+      <button class="btn danger" id="edit-delete">Delete</button>
+      <button class="btn primary" id="edit-save">Save</button>
+    </div>
+    <div id="delete-choice" class="delete-choice" hidden>
+      <p class="muted small">This item repeats. What should be deleted?</p>
+      <button class="btn danger-soft" id="delete-today">Just today's</button>
+      <button class="btn danger" id="delete-series">Today's and stop repeating</button>
+    </div>
+  </section>
+
+  <!-- Settings panel -->
+  <section id="settings-sheet" class="sheet" role="dialog" aria-modal="true" aria-labelledby="settings-title" hidden>
+    <div class="sheet-head">
+      <h2 id="settings-title">Settings</h2>
+      <button class="link-btn" id="settings-close">Done</button>
+    </div>
+
+    <h3>Backup</h3>
+    <p class="muted small">Your to-dos live only on this phone. Save a backup file now and then (to Files or iCloud Drive) so you can restore them if the app is removed.</p>
+    <div class="stack">
+      <button class="btn" id="export-btn">Save a backup</button>
+      <button class="btn" id="import-btn">Restore from a backup</button>
+      <input id="import-file" type="file" accept="application/json,.json" hidden>
+    </div>
+
+    <h3>Repeating to-dos</h3>
+    <ul id="repeat-list" class="repeat-list"></ul>
+
+    <h3>Danger zone</h3>
+    <button class="btn danger-soft" id="erase-btn">Erase all data</button>
+
+    <p class="muted small version">Version <span id="version"></span></p>
+  </section>
+
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden>
+    <span id="toast-text"></span>
+    <button id="toast-action" class="link-btn" hidden></button>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
