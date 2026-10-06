@@ -51,7 +51,21 @@ jobs:
           # Remove any spaces or line breaks picked up while copying the key.
           CLOUDFLARE_API_TOKEN="$(printf '%s' "$CLOUDFLARE_API_TOKEN" | tr -d '[:space:]')"
           export CLOUDFLARE_API_TOKEN
-          echo "Key length: ${#CLOUDFLARE_API_TOKEN} characters (Cloudflare keys are usually 40)"
           ACCOUNT_ID="$(printf '%s' "$ACCOUNT_ID" | tr -d '[:space:]')"
-          if [ -n "$ACCOUNT_ID" ]; then export CLOUDFLARE_ACCOUNT_ID="$ACCOUNT_ID"; fi
+          API=https://api.cloudflare.com/client/v4
+          AUTH="Authorization: Bearer $CLOUDFLARE_API_TOKEN"
+          if [ -z "$ACCOUNT_ID" ]; then
+            ACCOUNT_ID="$(curl -fsS -H "$AUTH" "$API/accounts" | jq -r '.result[0].id')"
+          fi
+          export CLOUDFLARE_ACCOUNT_ID="$ACCOUNT_ID"
+          # The service needs a free workers.dev web address. Pick one if there isn't one yet.
+          SUB="$(curl -sS -H "$AUTH" "$API/accounts/$ACCOUNT_ID/workers/subdomain" | jq -r '.result.subdomain // empty')"
+          if [ -z "$SUB" ]; then
+            NAME="ember-${ACCOUNT_ID:0:6}"
+            echo "Registering the workers.dev name: $NAME"
+            curl -fsS -X PUT -H "$AUTH" -H "Content-Type: application/json" \
+              --data "{\"subdomain\":\"$NAME\"}" "$API/accounts/$ACCOUNT_ID/workers/subdomain" | jq -c '.success, .errors'
+            SUB="$NAME"
+          fi
+          echo "workers.dev name: $SUB"
           npx wrangler deploy
