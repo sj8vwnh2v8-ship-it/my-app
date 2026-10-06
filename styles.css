@@ -635,3 +635,7 @@ button.pressed, .chip.pressed {
 /* ---------- Evening wrap-up ---------- */
 .wrapup { border-left: 4px solid #7c83db; }
 .wrapup p { margin: 2px 0 8px; }
+
+/* ---------- Goal nudge ---------- */
+.item-nudge { display: block; font-size: 13px; line-height: 1.35; color: var(--accent); margin-top: 3px; }
+.item.nudged { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }

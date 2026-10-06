@@ -5,7 +5,7 @@
 //  All data is kept in this browser's local storage.
 // ============================================================
 
-const APP_VERSION = '1.9.0';
+const APP_VERSION = '1.10.0';
 // The reminder service's web address. Reminders are switched off (and hidden
 // in the app) while this is empty. To turn them on, install the service in
 // worker/ on Cloudflare and put its address here.
@@ -356,6 +356,7 @@ function carryOver(id, bring) {
       id: uid(), text: item.text, date: currentDay, done: false, doneAt: null,
       priority: item.priority || null, prioritySource: item.prioritySource || null,
       time: item.time || null, repeatId: null, createdAt: Date.now(), carriedFrom: item.id, suggestFrom: item.suggestFrom,
+      pushes: (item.pushes || 0) + 1,
     });
   } else {
     item.carry = 'dropped';
@@ -434,14 +435,17 @@ function renderWrapUp() {
 // Returns a function that undoes it.
 function clearForTonight(items) {
   const tomorrow = addDays(currentDay, 1);
-  const before = items.map((i) => ({ item: i, date: i.date, deleted: i.deleted }));
+  const before = items.map((i) => ({ item: i, date: i.date, deleted: i.deleted, pushes: i.pushes }));
   for (const i of items) {
     if (i.repeatId) i.deleted = true;
-    else { i.date = tomorrow; i.movedFrom = currentDay; }
+    else { i.date = tomorrow; i.movedFrom = currentDay; i.pushes = (i.pushes || 0) + 1; }
   }
   save();
   return () => {
-    for (const b of before) { b.item.date = b.date; b.item.deleted = b.deleted; delete b.item.movedFrom; }
+    for (const b of before) {
+      b.item.date = b.date; b.item.deleted = b.deleted; b.item.pushes = b.pushes;
+      delete b.item.movedFrom;
+    }
     save();
     render();
   };
@@ -562,6 +566,9 @@ function renderCarryOver() {
   }
 }
 
+const NUDGE_AFTER = 2; // pushes before a goal to-do gets a gentle nudge
+const NUDGE_CHEERS = ['Even 10 minutes counts.', 'A small step still counts.', 'Maybe a smaller version today?'];
+
 const CHECK_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
 function renderList({ animate = false } = {}) {
@@ -609,11 +616,25 @@ function renderList({ animate = false } = {}) {
       if (rule && rule.active) meta.push('↻ ' + describeRepeat(rule));
     }
     if (item.carriedFrom) meta.push('Carried over');
+
+    // 🎯 Goal tag, or a gentle nudge if a goal to-do keeps getting pushed.
+    const goal = goalFor(state, item);
+    const pushes = goal && !item.done ? pushCount(state, item, currentDay) : 0;
+    if (goal && pushes < NUDGE_AFTER) meta.push('🎯 ' + goal.text);
     if (meta.length) {
       const m = document.createElement('span');
       m.className = 'item-meta';
       m.textContent = meta.join(' · ');
       body.appendChild(m);
+    }
+    if (goal && pushes >= NUDGE_AFTER) {
+      const nudge = document.createElement('span');
+      nudge.className = 'item-nudge';
+      const what = item.repeatId ? `Skipped ${pushes} times this week` : `Pushed ${pushes} times`;
+      const cheer = NUDGE_CHEERS[hashString(item.id + currentDay) % NUDGE_CHEERS.length];
+      nudge.textContent = `🎯 ${what}. It's for ${goal.text}. ${cheer}`;
+      body.appendChild(nudge);
+      row.classList.add('nudged');
     }
     body.addEventListener('click', () => {
       if (row.dataset.swiped) return;

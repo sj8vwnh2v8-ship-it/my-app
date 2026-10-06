@@ -57,6 +57,44 @@ function dayNumber(key) {
   return Math.round(parseKey(key).getTime() / 86400000);
 }
 
+// ---------- Goal matching ----------
+
+// Words too general to tie a to-do to a goal on their own.
+const GOAL_STOP = new Set([...STOP_WORDS, 'learn', 'more', 'better', 'less', 'time', 'make', 'daily',
+  'every', 'week', 'start', 'keep', 'your', 'with', 'finish', 'work', 'get']);
+
+// Which of your goals a to-do clearly helps with, or null.
+// Counts: to-dos added from that goal's suggestions, and ones whose words
+// match the goal (e.g. "Morning run" → "Run a 5K", "Duolingo" → "Learn Spanish").
+function goalFor(state, item) {
+  const goals = (state.profile && state.profile.goals) || [];
+  if (!goals.length) return null;
+  if (item.suggestFrom && item.suggestFrom.startsWith('goal:')) {
+    const g = goals.find((x) => 'goal:' + x.id === item.suggestFrom);
+    if (g) return g;
+  }
+  const text = normText(item.text);
+  const words = new Set(wordsOf(item.text).filter((w) => w.length >= 4 && !GOAL_STOP.has(w)));
+  for (const g of goals) {
+    const group = IDEA_LIBRARY.find((x) => x.match.test(normText(g.text)));
+    if (group && (group.match.test(text) || group.ideas.some((idea) => normText(idea) === text))) return g;
+    if (wordsOf(g.text).some((w) => w.length >= 4 && !GOAL_STOP.has(w) && words.has(w))) return g;
+  }
+  return null;
+}
+
+// How many times a to-do has been put off: moved to tomorrow or carried
+// over (one-time to-dos), or left undone in the last week (repeating ones).
+function pushCount(state, item, today) {
+  if (!item.repeatId) return item.pushes || 0;
+  let n = 0;
+  for (let k = 1; k <= 7; k++) {
+    const day = addDays(today, -k);
+    if (state.items.some((i) => i.repeatId === item.repeatId && i.date === day && !i.done)) n++;
+  }
+  return n;
+}
+
 // ---------- Suggestions ----------
 
 function daysOfUse(state) {
@@ -138,10 +176,15 @@ function goalCandidates(state, day, isBlocked) {
   if (!profile) return [];
   const out = [];
   const today = dayNumber(day);
+  // Your own to-dos that match a goal count too, not just accepted suggestions.
+  const since = addDays(day, -14);
   const lastFromSource = (src) => {
     let last = null;
     for (const i of state.items) {
-      if (i.suggestFrom === src && !i.deleted && i.date < day && (!last || i.date > last)) last = i.date;
+      if (i.deleted || i.date >= day || i.date < since || (last && i.date <= last)) continue;
+      if (i.suggestFrom === src) { last = i.date; continue; }
+      const g = i.done ? goalFor(state, i) : null;
+      if (g && 'goal:' + g.id === src) last = i.date;
     }
     return last;
   };
