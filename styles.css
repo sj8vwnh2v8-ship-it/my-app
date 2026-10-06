@@ -1,3 +1,12 @@
+/* Fraunces (SIL Open Font License, see fonts/OFL.txt). Built into the app so it works offline. */
+@font-face {
+  font-family: 'Fraunces';
+  src: url('fonts/fraunces.woff2') format('woff2');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   /* "Night glow" theme: charcoal + ember orange, to match the icon */
   --bg: #f6f4f1;
@@ -50,7 +59,8 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font: 17px/1.4 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+  font: 17px/1.4 'Fraunces', Georgia, 'Times New Roman', serif;
+  font-optical-sizing: auto; /* sturdier letter shapes at small sizes */
   -webkit-tap-highlight-color: transparent;
   min-height: 100vh;
   overscroll-behavior-y: none;

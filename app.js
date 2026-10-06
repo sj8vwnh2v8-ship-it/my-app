@@ -5,7 +5,7 @@
 //  All data is kept in this browser's local storage.
 // ============================================================
 
-const APP_VERSION = '1.6.0';
+const APP_VERSION = '1.7.0';
 // The reminder service's web address. Reminders are switched off (and hidden
 // in the app) while this is empty. To turn them on, install the service in
 // worker/ on Cloudflare and put its address here.
@@ -832,8 +832,8 @@ function renderProfileSummary() {
   }
   const days = daysOfUse(state);
   $('suggest-status').textContent = days >= SUGGEST_AFTER_DAYS
-    ? 'Tap 💡 in the green bar for ideas. They also open by themselves each day.'
-    : `Tap 💡 in the green bar for ideas anytime. After ${SUGGEST_AFTER_DAYS} days of use (you’re at ${days}), they’ll also learn from your habits and open by themselves.`;
+    ? 'Tap 💡 at the top of the screen for ideas. They also open by themselves each day.'
+    : `Tap 💡 at the top of the screen for ideas anytime. After ${SUGGEST_AFTER_DAYS} days of use (you’re at ${days}), they’ll also learn from your habits and open by themselves.`;
 }
 
 // ---------- Reminders ----------
