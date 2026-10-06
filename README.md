@@ -30,6 +30,15 @@ service's address in `REMINDER_API`.
   It only receives each reminder's text and time. GitHub Actions installs it
   (`.github/workflows/deploy-reminders.yml`) using the `CLOUDFLARE_API_TOKEN` secret.
 
+## More features
+- Smarter typing: "Call mom tomorrow", "Gym every Monday", "Pay rent monthly on the 1st"
+- Repeats: daily, weekly (or every 2 weeks), weekdays, monthly
+- Press and hold a to-do to drag it into your own order
+- Streak freezes (one per 7-day run, max 2) and one planned rest day a week
+- Evening wrap-up after 8 PM, Sunday weekly recap, milestone celebrations
+- Goal-related to-dos show their goal, with a gentle nudge if they keep getting pushed
+- Optional check-off sound; share a list as text
+
 ## Files
 - `index.html` — the page layout
 - `styles.css` — colors and look
