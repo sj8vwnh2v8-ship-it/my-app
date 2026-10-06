@@ -18,7 +18,12 @@ Everything is saved on your phone; there are no accounts.
 - Daily suggestions after 7 days of use, from your habits and your goals; tap ✓ to add or ✕ to dismiss
 - Guessed priority colors (lighter stripe, "Guessed: High") learned from how you've colored and handled to-dos
 
-## Stage 3: reminders
+## Stage 3: reminders (built, currently switched off)
+Reminders are hidden in the app while `REMINDER_API` in `app.js` is empty.
+To turn them on: add a working Cloudflare key as the `CLOUDFLARE_API_TOKEN`
+GitHub secret, re-run the "Deploy reminder service" action, and put the
+service's address in `REMINDER_API`.
+
 - Set a "Remind me at" time on any to-do (repeating ones too)
 - Turn reminders on in Settings (needs the app opened from the home-screen icon, iOS 16.4+)
 - The reminder service lives in `worker/` and runs on Cloudflare's free plan.

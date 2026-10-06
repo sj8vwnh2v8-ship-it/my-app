@@ -5,8 +5,10 @@
 //  All data is kept in this browser's local storage.
 // ============================================================
 
-const APP_VERSION = '1.2.0';
-// The reminder service's web address (filled in once it's installed on Cloudflare).
+const APP_VERSION = '1.2.1';
+// The reminder service's web address. Reminders are switched off (and hidden
+// in the app) while this is empty. To turn them on, install the service in
+// worker/ on Cloudflare and put its address here.
 const REMINDER_API = '';
 const STORE_KEY = 'today-app-data';
 const PRIORITY_RANK = { high: 0, med: 1, low: 2 };
@@ -1234,6 +1236,8 @@ $('erase-btn').addEventListener('click', () => {
   openOnboarding();
 });
 $('version').textContent = APP_VERSION;
+$('time-section').hidden = !REMINDER_API;
+$('remind-section').hidden = !REMINDER_API;
 
 // Re-check when you come back to the app (it may be a new day).
 document.addEventListener('visibilitychange', () => {

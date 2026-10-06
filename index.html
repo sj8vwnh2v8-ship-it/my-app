@@ -150,6 +150,7 @@
     <div id="edit-days" class="days" hidden></div>
     <p id="repeat-note" class="muted small" hidden></p>
 
+    <div id="time-section">
     <label class="field-label" for="edit-time">Remind me at</label>
     <div class="time-row">
       <input id="edit-time" type="time">
@@ -158,6 +159,7 @@
     <div id="remind-note" class="remind-note" hidden>
       <span>Reminders are off on this phone.</span>
       <button type="button" class="link-btn" id="remind-note-on">Turn on</button>
+    </div>
     </div>
 
     <div class="sheet-actions">
@@ -186,12 +188,14 @@
       <input id="import-file" type="file" accept="application/json,.json" hidden>
     </div>
 
-    <h3>Reminders</h3>
-    <p id="remind-status" class="small"></p>
-    <div class="stack">
-      <button class="btn primary" id="remind-on" hidden>Turn on reminders</button>
-      <button class="btn" id="remind-test" hidden>Send a test notification</button>
-      <button class="btn ghost" id="remind-off" hidden>Turn off reminders</button>
+    <div id="remind-section">
+      <h3>Reminders</h3>
+      <p id="remind-status" class="small"></p>
+      <div class="stack">
+        <button class="btn primary" id="remind-on" hidden>Turn on reminders</button>
+        <button class="btn" id="remind-test" hidden>Send a test notification</button>
+        <button class="btn ghost" id="remind-off" hidden>Turn off reminders</button>
+      </div>
     </div>
 
     <h3>Hobbies &amp; goals</h3>
