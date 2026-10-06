@@ -5,7 +5,7 @@
 //  All data is kept in this browser's local storage.
 // ============================================================
 
-const APP_VERSION = '1.14.0';
+const APP_VERSION = '1.15.0';
 // The reminder service's web address. Reminders are switched off (and hidden
 // in the app) while this is empty. To turn them on, install the service in
 // worker/ on Cloudflare and put its address here.
@@ -1148,6 +1148,7 @@ function closeOnboarding() {
 }
 
 function finishOnboarding(skipped) {
+  const firstTime = !ob.editing;
   if (skipped && !ob.editing) {
     state.profile = { hobbies: [], goals: [], skipped: true };
   } else if (!skipped) {
@@ -1160,6 +1161,7 @@ function finishOnboarding(skipped) {
     if (getSuggestions(state, currentDay).length) setSuggestOpen(true);
     showToast('Saved! Tap 💡 anytime for ideas.');
   }
+  if (firstTime) setTimeout(offerReminders, 700);
 }
 
 function chip(label, on, onClick) {
@@ -1809,6 +1811,30 @@ function startFirstRun() {
   else openTour('first');
 }
 
+// ---------- "Want reminders?" pop-up ----------
+// Shown once: to new people right after the first-time questions, and to
+// anyone else who hasn't turned reminders on yet. Only where they can work.
+
+function canOfferReminders() {
+  return !state.meta.remindPromptSeen && reminderState() === 'off' && !!swRegistration;
+}
+
+function offerReminders() {
+  if (!canOfferReminders()) return;
+  // Don't pop up over the tour, the questions or an open panel.
+  const busy = !$('tour').hidden || !$('onboard').hidden || !$('install-page').hidden ||
+    !$('edit-sheet').hidden || !$('settings-sheet').hidden || !$('progress-sheet').hidden || !$('milestone').hidden;
+  if (busy) return;
+  prefetchReminderKey();
+  $('remind-prompt').hidden = false;
+}
+
+function closeReminderPrompt() {
+  $('remind-prompt').hidden = true;
+  state.meta.remindPromptSeen = true;
+  save();
+}
+
 // ---------- Settings panel ----------
 
 function renderRepeatList() {
@@ -2098,6 +2124,12 @@ $('replay-tour').addEventListener('click', () => { closeSheets(); openTour('repl
 $('install-continue').addEventListener('click', () => { $('install-page').hidden = true; openTour('first'); });
 window.addEventListener('resize', () => { if (!$('tour').hidden) goToSlide(tourIndex()); });
 
+$('remind-prompt-yes').addEventListener('click', () => { closeReminderPrompt(); enableReminders(); });
+$('remind-prompt-no').addEventListener('click', () => {
+  closeReminderPrompt();
+  showToast('No problem. You can turn reminders on anytime in •••.');
+});
+
 $('ob-next').addEventListener('click', () => {
   if (ob.step < 2) { ob.step++; renderOnboarding(); } else finishOnboarding(false);
 });
@@ -2135,6 +2167,10 @@ setInterval(() => {
 
 runDailyCheck();
 startFirstRun();
+// Offer reminders to people who already use Ember (after the splash).
+if (state.profile && 'serviceWorker' in navigator) {
+  navigator.serviceWorker.ready.then(() => setTimeout(offerReminders, 2600));
+}
 
 // ---------- Press-down feel for every button ----------
 // Adds a "pressed" look the moment your finger lands, and keeps it long

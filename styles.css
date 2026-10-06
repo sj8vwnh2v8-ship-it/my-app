@@ -696,3 +696,22 @@ button.pressed, .chip.pressed {
 @keyframes fade-in { from { opacity: 0; } }
 @keyframes pop-in { from { transform: scale(0.8); opacity: 0; } }
 .remind-line { margin: 6px 0 0; color: var(--accent); }
+
+/* ---------- "Want reminders?" pop-up ---------- */
+.remind-card { padding-top: 26px; }
+.remind-card .bell {
+  width: 76px; height: 76px; margin: 0 auto 12px; border-radius: 50%;
+  display: grid; place-items: center; font-size: 38px;
+  background: var(--header-bg); box-shadow: 0 6px 20px rgba(226, 98, 42, 0.35);
+  animation: ring 1.4s ease-in-out 0.4s 2;
+}
+.remind-card h2 { font-size: 26px; }
+.remind-card p { color: var(--text); font-size: 16px; line-height: 1.45; margin-bottom: 18px; }
+.remind-card .link-btn { margin-top: 10px; font-size: 16px; width: 100%; }
+.remind-card .fine { margin: 8px 0 0; color: var(--muted); font-size: 13px; }
+@keyframes ring {
+  0%, 100% { transform: rotate(0); }
+  15% { transform: rotate(14deg); } 30% { transform: rotate(-12deg); }
+  45% { transform: rotate(8deg); } 60% { transform: rotate(-5deg); } 75% { transform: rotate(2deg); }
+}
+@media (prefers-reduced-motion: reduce) { .remind-card .bell { animation: none; } }
