@@ -5,7 +5,7 @@
 //  All data is kept in this browser's local storage.
 // ============================================================
 
-const APP_VERSION = '1.12.0';
+const APP_VERSION = '1.13.0';
 // The reminder service's web address. Reminders are switched off (and hidden
 // in the app) while this is empty. To turn them on, install the service in
 // worker/ on Cloudflare and put its address here.
@@ -985,6 +985,13 @@ function renderDays() {
   } else if (editing.repeatKind === 'monthly') {
     note.textContent = editing.dom > 28 ? 'In shorter months it shows up on the last day.' : 'It will show up that day each month by itself.';
   }
+  const reminds = remindsFor({ active: true, kind: editing.repeatKind, days: editing.days });
+  const st = reminderState();
+  const line = $('remind-line');
+  line.hidden = !reminds || st === 'not-setup';
+  line.textContent = st === 'on'
+    ? '🔔 You’ll get a reminder at 8 PM the night before and 9 AM on the day.'
+    : '🔔 Turn on reminders in ••• to get a heads-up the night before and the morning of.';
 }
 
 function openEdit(id) {
@@ -1301,23 +1308,34 @@ function atTime(day, hhmm) {
   return d.getTime();
 }
 
-// Every reminder coming up in the next 2 weeks.
+// Which to-dos get reminders: ones that repeat weekly (on particular days,
+// or every 2 weeks) or monthly. Every-day repeats and one-time to-dos don't.
+const REMIND_EVENING = '20:00'; // the night before
+const REMIND_MORNING = '09:00'; // the day itself
+
+function remindsFor(rule) {
+  if (!rule || !rule.active) return false;
+  if (rule.kind === 'monthly') return true;
+  return rule.kind === 'weekly' && rule.days.length > 0 && rule.days.length < 7;
+}
+
+// Every reminder coming up in the next 2 weeks: 8 PM the night before
+// and 9 AM on the day. Already done (or skipped) days are left out.
 function upcomingReminders() {
   const now = Date.now();
   const out = [];
-  for (const i of state.items) {
-    if (i.deleted || i.done || !i.time || i.date < currentDay) continue;
-    const at = atTime(i.date, i.time);
-    if (at > now) out.push({ id: 'i:' + i.id, at, title: i.text, body: `Reminder · ${formatTime(i.time)}` });
-  }
-  // Repeating to-dos that haven't appeared on the list yet.
   for (const rule of state.repeats) {
-    if (!rule.active || !rule.time) continue;
-    for (let n = 0; n < 14; n++) {
+    if (!remindsFor(rule)) continue;
+    for (let n = 0; n < 15; n++) {
       const day = addDays(currentDay, n);
-      if (!repeatMatches(rule, day) || state.items.some((i) => i.repeatId === rule.id && i.date === day)) continue;
-      const at = atTime(day, rule.time);
-      if (at > now) out.push({ id: `r:${rule.id}:${day}`, at, title: rule.text, body: `Reminder · ${formatTime(rule.time)}` });
+      if (!repeatMatches(rule, day)) continue;
+      const item = state.items.find((i) => i.repeatId === rule.id && i.date === day);
+      if (item && (item.done || item.deleted)) continue;
+      const weekday = parseKey(day).toLocaleDateString(undefined, { weekday: 'long' });
+      const eve = atTime(addDays(day, -1), REMIND_EVENING);
+      const morning = atTime(day, REMIND_MORNING);
+      if (eve > now) out.push({ id: `r:${rule.id}:${day}:eve`, at: eve, title: `Tomorrow: ${rule.text}`, body: `Planned for ${weekday}.` });
+      if (morning > now) out.push({ id: `r:${rule.id}:${day}:am`, at: morning, title: `Today: ${rule.text}`, body: 'Tap to open your list.' });
     }
   }
   return out.sort((a, b) => a.at - b.at).slice(0, 250);
@@ -1467,8 +1485,8 @@ function renderReminderSettings() {
     'not-installed': 'To get reminders, open this app from its home-screen icon (not from Safari).',
     unsupported: 'This phone can’t show reminders from web apps. iPhones need iOS 16.4 or newer.',
     blocked: 'Notifications are blocked for this app. Turn them on in iPhone Settings → Notifications → Ember.',
-    on: 'Reminders are on for this phone. Set a time on any to-do to get a notification.',
-    off: 'Get a notification at the time you set on a to-do.',
+    on: 'Reminders are on. To-dos that repeat weekly or monthly remind you at 8 PM the night before and 9 AM on the day.',
+    off: 'Get reminded about to-dos that repeat weekly or monthly: 8 PM the night before and 9 AM on the day.',
   }[st];
   $('remind-status').textContent = text;
   $('remind-on').hidden = st !== 'off';
@@ -2103,7 +2121,7 @@ $('erase-btn').addEventListener('click', () => {
   startFirstRun();
 });
 $('version').textContent = APP_VERSION;
-$('time-section').hidden = !REMINDER_API;
+$('time-section').hidden = true; // one-time to-dos don't send reminders
 $('remind-section').hidden = !REMINDER_API;
 
 // Re-check when you come back to the app (it may be a new day).
