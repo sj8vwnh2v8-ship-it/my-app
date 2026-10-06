@@ -5,11 +5,11 @@
 //  All data is kept in this browser's local storage.
 // ============================================================
 
-const APP_VERSION = '1.13.0';
+const APP_VERSION = '1.14.0';
 // The reminder service's web address. Reminders are switched off (and hidden
 // in the app) while this is empty. To turn them on, install the service in
 // worker/ on Cloudflare and put its address here.
-const REMINDER_API = '';
+const REMINDER_API = 'https://today-reminders.ember-fb3eb2.workers.dev';
 const STORE_KEY = 'today-app-data';
 const PRIORITY_RANK = { high: 0, med: 1, low: 2 };
 const PRIORITY_LABEL = { high: 'High', med: 'Medium', low: 'Low' };
