@@ -1,4 +1,4 @@
-# Today — a simple to-do app
+# Ember — a simple daily to-do app
 
 A to-do list for today that you install on your iPhone home screen.
 Everything is saved on your phone; there are no accounts.

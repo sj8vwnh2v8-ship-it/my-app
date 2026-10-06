@@ -1,12 +1,12 @@
 {
-  "name": "Today",
-  "short_name": "Today",
-  "description": "A simple to-do list for today.",
+  "name": "Ember",
+  "short_name": "Ember",
+  "description": "A simple daily to-do list that keeps your streak alive.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#2f6f5e",
+  "background_color": "#1b1d22",
   "theme_color": "#2f6f5e",
   "icons": [
     { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },

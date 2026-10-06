@@ -5,7 +5,7 @@
 //  All data is kept in this browser's local storage.
 // ============================================================
 
-const APP_VERSION = '1.3.0';
+const APP_VERSION = '1.4.0';
 // The reminder service's web address. Reminders are switched off (and hidden
 // in the app) while this is empty. To turn them on, install the service in
 // worker/ on Cloudflare and put its address here.
@@ -960,7 +960,7 @@ function enableReminders() {
     .catch(() => {
       renderReminderSettings();
       if (Notification.permission === 'denied') {
-        showToast('Notifications are blocked. Turn them on in iPhone Settings → Notifications → Today.');
+        showToast('Notifications are blocked. Turn them on in iPhone Settings → Notifications → Ember.');
       } else {
         showToast('Couldn’t turn on reminders. Please try again.');
       }
@@ -1025,7 +1025,7 @@ function renderReminderSettings() {
     'not-setup': 'Reminders aren’t set up yet. They’re coming soon.',
     'not-installed': 'To get reminders, open this app from its home-screen icon (not from Safari).',
     unsupported: 'This phone can’t show reminders from web apps. iPhones need iOS 16.4 or newer.',
-    blocked: 'Notifications are blocked for this app. Turn them on in iPhone Settings → Notifications → Today.',
+    blocked: 'Notifications are blocked for this app. Turn them on in iPhone Settings → Notifications → Ember.',
     on: 'Reminders are on for this phone. Set a time on any to-do to get a notification.',
     off: 'Get a notification at the time you set on a to-do.',
   }[st];
@@ -1192,11 +1192,11 @@ function renderRepeatList() {
 
 async function exportBackup() {
   const json = JSON.stringify(state, null, 2);
-  const name = `today-backup-${dateKey()}.json`;
+  const name = `ember-backup-${dateKey()}.json`;
   const file = new File([json], name, { type: 'application/json' });
   try {
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
-      await navigator.share({ files: [file], title: 'Today backup' });
+      await navigator.share({ files: [file], title: 'Ember backup' });
       backupDone();
       return;
     }

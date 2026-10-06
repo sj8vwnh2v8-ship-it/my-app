@@ -1,7 +1,7 @@
 // Keeps a copy of the app on the phone so it opens even without internet.
 // It always tries the internet first (so you get updates), then falls back
 // to the saved copy if you're offline or the connection is slow.
-const CACHE = 'today-v11';
+const CACHE = 'ember-v12';
 const FILES = [
   './',
   './index.html',
@@ -54,7 +54,7 @@ self.addEventListener('fetch', (event) => {
 self.addEventListener('push', (event) => {
   let data = {};
   try { data = event.data ? event.data.json() : {}; } catch (e) { /* not JSON */ }
-  event.waitUntil(self.registration.showNotification(data.title || 'Today', {
+  event.waitUntil(self.registration.showNotification(data.title || 'Ember', {
     body: data.body || '',
     tag: data.tag,
     icon: './icons/icon-192.png',

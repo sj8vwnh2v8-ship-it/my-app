@@ -3,14 +3,14 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Today</title>
-  <meta name="description" content="A simple to-do list for today.">
+  <title>Ember</title>
+  <meta name="description" content="Ember: a simple daily to-do list that keeps your streak alive.">
   <meta name="theme-color" content="#2f6f5e" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#24584a" media="(prefers-color-scheme: dark)">
   <!-- iPhone home-screen app settings -->
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-title" content="Today">
+  <meta name="apple-mobile-web-app-title" content="Ember">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <link rel="icon" href="icons/icon-192.png">
@@ -18,36 +18,40 @@
   <link rel="stylesheet" href="styles.css">
   <!-- Splash screen styles live here (not in styles.css) so they show instantly -->
   <style>
-    html.booting, html.booting body { background: #2f6f5e; }
+    html.booting, html.booting body { background: #1b1d22; }
     #splash {
       position: fixed; inset: 0; z-index: 100;
-      background: #2f6f5e;
+      background: #1b1d22;
       display: flex; align-items: center; justify-content: center;
-      transition: opacity 0.35s ease;
+      transition: opacity 0.4s ease;
+    }
+    #splash .glow {
+      position: absolute; width: 360px; height: 360px; border-radius: 50%;
+      background: radial-gradient(circle, rgba(255,138,61,0.85) 0%, rgba(217,69,43,0.45) 40%, rgba(27,29,34,0) 70%);
+      animation: glow-in 0.9s ease-out both, glow-pulse 1.6s ease-in-out 0.9s infinite alternate;
     }
     #splash svg {
-      width: 112px; height: 112px;
-      animation: splash-in 0.5s cubic-bezier(0.3, 1.5, 0.5, 1) both;
-      transition: transform 0.35s ease;
-    }
-    #splash .splash-check {
-      stroke-dasharray: 72; stroke-dashoffset: 72;
-      animation: splash-draw 0.4s ease 0.3s forwards;
+      position: relative; width: 104px; height: 104px;
+      animation: flame-in 0.55s cubic-bezier(0.3, 1.5, 0.5, 1) 0.1s both;
+      transform-origin: 50% 85%;
+      transition: transform 0.4s ease;
     }
     #splash.leaving { opacity: 0; pointer-events: none; }
-    #splash.leaving svg { transform: scale(1.15); }
-    @keyframes splash-in { from { transform: scale(0.7); opacity: 0; } to { transform: scale(1); opacity: 1; } }
-    @keyframes splash-draw { to { stroke-dashoffset: 0; } }
+    #splash.leaving svg { transform: scale(1.2); }
+    @keyframes glow-in { from { transform: scale(0.3); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+    @keyframes glow-pulse { to { transform: scale(1.08); opacity: 0.85; } }
+    @keyframes flame-in { from { transform: scale(0.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
     @media (prefers-reduced-motion: reduce) {
-      #splash svg, #splash .splash-check { animation: none; stroke-dashoffset: 0; }
+      #splash .glow, #splash svg { animation: none; }
     }
   </style>
 </head>
 <body>
   <div id="splash" aria-hidden="true">
-    <svg viewBox="0 0 120 120" fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round">
-      <circle cx="60" cy="60" r="52" stroke-width="10"/>
-      <path class="splash-check" d="M37 61 L52 76 L82 45" stroke-width="12"/>
+    <div class="glow"></div>
+    <svg viewBox="128 70 256 366">
+      <path d="M256 70 C 290 140, 384 196, 384 302 C 384 376, 326 436, 256 436 C 186 436, 128 376, 128 302 C 128 240, 166 202, 196 174 C 198 220, 214 248, 240 258 C 228 190, 232 126, 256 70 Z" fill="#fff4e6"/>
+      <path d="M256 232 C 274 270, 320 296, 320 348 C 320 386, 292 412, 256 412 C 220 412, 192 386, 192 350 C 192 318, 212 298, 228 284 C 232 306, 240 318, 252 322 C 244 290, 246 262, 256 232 Z" fill="#ffb347"/>
     </svg>
   </div>
   <script>
