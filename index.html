@@ -213,6 +213,9 @@
       <button class="link-btn" id="settings-close">Done</button>
     </div>
 
+    <h3>Help</h3>
+    <button class="btn" id="replay-tour">How Ember works</button>
+
     <h3>Backup</h3>
     <p class="muted small">Your to-dos live only on this phone. Save a backup file now and then (to Files or iCloud Drive) so you can restore them if the app is removed.</p>
     <div class="stack">
@@ -289,6 +292,153 @@
     <div class="onboard-foot">
       <button class="btn ghost" id="ob-back">Back</button>
       <button class="btn primary" id="ob-next">Next</button>
+    </div>
+  </section>
+
+  <!-- Welcome tour (first open, and ••• → How Ember works) -->
+  <section id="tour" class="tour" role="dialog" aria-modal="true" aria-label="How Ember works" hidden>
+    <button class="tour-skip" id="tour-skip">Skip</button>
+    <div class="tour-track" id="tour-track">
+
+      <article class="slide">
+        <div class="art art-welcome"><div class="m-glow"></div><svg class="m-flame" viewBox="128 70 256 366" aria-hidden="true"><path d="M256 70 C 290 140, 384 196, 384 302 C 384 376, 326 436, 256 436 C 186 436, 128 376, 128 302 C 128 240, 166 202, 196 174 C 198 220, 214 248, 240 258 C 228 190, 232 126, 256 70 Z" fill="#fff4e6"/><path d="M256 232 C 274 270, 320 296, 320 348 C 320 386, 292 412, 256 412 C 220 412, 192 386, 192 350 C 192 318, 212 298, 228 284 C 232 306, 240 318, 252 322 C 244 290, 246 262, 256 232 Z" fill="#ffb347"/></svg></div>
+        <div class="slide-text">
+          <h2>Welcome to Ember</h2>
+          <p class="lead">A simple to-do list for <b>today</b> that helps you build a streak of days where you got everything done.</p>
+          <ul>
+            <li>Plan your day in seconds</li>
+            <li>Keep your 🔥 streak alive</li>
+            <li>Get ideas based on your hobbies and goals</li>
+            <li>Private: no account, everything stays on your phone</li>
+          </ul>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="art">
+          <div class="m-add"><span>Buy groceries</span><i>+</i></div>
+          <div class="m-item"><span class="m-check"></span><span>Call the dentist</span></div>
+          <div class="m-item m-done"><span class="m-check on"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span><span>Walk the dog</span></div>
+          <div class="m-item m-swipe"><span class="m-check"></span><span>Old idea</span><b>Delete</b></div>
+        </div>
+        <div class="slide-text">
+          <h2>Plan your day</h2>
+          <ul>
+            <li><b>Add:</b> type in the box at the top and tap <b>+</b></li>
+            <li><b>Done:</b> tap the circle to check it off</li>
+            <li><b>Edit:</b> tap a to-do to change it</li>
+            <li><b>Delete:</b> swipe it left (tap <b>Undo</b> if you slip)</li>
+          </ul>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="art">
+          <div class="m-item m-high"><span class="m-check"></span><span>Pay rent</span><em>High</em></div>
+          <div class="m-item m-med"><span class="m-check"></span><span>Go for a run</span><em>Medium</em></div>
+          <div class="m-item m-low"><span class="m-check"></span><span>Call mom</span><em>Low</em></div>
+          <div class="m-item m-high m-guess"><span class="m-check"></span><span>Pay electric bill</span><em>Guessed: High</em></div>
+        </div>
+        <div class="slide-text">
+          <h2>Colors show priority</h2>
+          <ul>
+            <li><b class="c-high">Red</b> = high, <b class="c-med">yellow</b> = medium, <b class="c-low">blue</b> = low. Important things float to the top.</li>
+            <li>Tap a to-do to pick its color</li>
+            <li>Ember learns your habits and <b>guesses</b> colors for new to-dos. A lighter stripe means it's a guess; tap the to-do and Save to confirm it</li>
+          </ul>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="art">
+          <div class="m-switch"><span class="on">Today</span><span>Tomorrow</span></div>
+          <div class="m-item"><span class="m-check"></span><span>Read 10 pages</span><em>↻ Every day</em></div>
+          <div class="m-carry"><span>Laundry <em>Yesterday</em></span><i>Drop</i><i class="yes">Bring</i></div>
+        </div>
+        <div class="slide-text">
+          <h2>Today, tomorrow &amp; repeats</h2>
+          <ul>
+            <li>Switch to <b>Tomorrow</b> to plan ahead</li>
+            <li>Make a to-do <b>repeat</b> every day or on certain weekdays. It shows up by itself</li>
+            <li>Didn't finish something? Next day, Ember asks if you want to <b>bring it along</b></li>
+          </ul>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="art">
+          <div class="m-streak">🔥 <b>12</b></div>
+          <div class="m-cal">
+            <i class="c"></i><i class="c"></i><i class="p"></i><i class="c"></i><i class="c"></i><i class="m"></i><i class="c"></i>
+            <i class="c"></i><i class="c"></i><i class="c"></i><i class="c"></i><i class="c"></i><i class="c"></i><i class="c"></i>
+          </div>
+        </div>
+        <div class="slide-text">
+          <h2>Keep the flame alive</h2>
+          <ul>
+            <li>Finish <b>everything</b> you planned and your 🔥 streak grows by one, with a little confetti</li>
+            <li>A day you skip or leave empty breaks the streak, so plan at least one thing each day</li>
+            <li><b>Tap the 🔥</b> to see your calendar, best streak and stats</li>
+          </ul>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="art">
+          <div class="m-sug">
+            <div class="m-sug-row"><span>Learn 10 new words<em>For your goal: Learn Spanish</em></span><i>✕</i><i class="yes">✓</i></div>
+            <div class="m-sug-row"><span>Laundry<em>You added this on 3 of the last 4 Sundays</em></span><i>✕</i><i class="yes">✓</i></div>
+          </div>
+        </div>
+        <div class="slide-text">
+          <h2>Ideas when you want them</h2>
+          <ul>
+            <li>Next, you'll pick a few <b>hobbies and goals</b> (or skip)</li>
+            <li>Tap <b>💡</b> at the top for suggestions. <b>✓</b> adds one, <b>✕</b> skips it</li>
+            <li>After a week, Ember also learns what you usually add on which days</li>
+          </ul>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="art art-lock">
+          <div class="m-phone"><div class="m-lock">🔒</div></div>
+        </div>
+        <div class="slide-text">
+          <h2>Your list stays on your phone</h2>
+          <ul>
+            <li>No account and nothing uploaded. Only you can see your list</li>
+            <li>That also means deleting the app deletes your list, so save a backup now and then: <b>•••</b> → <b>Save a backup</b></li>
+            <li>Ember reminds you every 2 weeks</li>
+          </ul>
+        </div>
+      </article>
+
+    </div>
+    <div class="tour-foot">
+      <div class="tour-dots" id="tour-dots"></div>
+      <div class="tour-btns">
+        <button class="btn ghost" id="tour-back">Back</button>
+        <button class="btn primary" id="tour-next">Next</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- First visit in Safari on iPhone: install first -->
+  <section id="install-page" class="tour install-page" role="dialog" aria-modal="true" aria-labelledby="install-title" hidden>
+    <div class="install-body">
+      <div class="art art-welcome small"><div class="m-glow"></div><svg class="m-flame" viewBox="128 70 256 366" aria-hidden="true"><path d="M256 70 C 290 140, 384 196, 384 302 C 384 376, 326 436, 256 436 C 186 436, 128 376, 128 302 C 128 240, 166 202, 196 174 C 198 220, 214 248, 240 258 C 228 190, 232 126, 256 70 Z" fill="#fff4e6"/><path d="M256 232 C 274 270, 320 296, 320 348 C 320 386, 292 412, 256 412 C 220 412, 192 386, 192 350 C 192 318, 212 298, 228 284 C 232 306, 240 318, 252 322 C 244 290, 246 262, 256 232 Z" fill="#ffb347"/></svg></div>
+      <h2 id="install-title">Add Ember to your Home Screen</h2>
+      <p class="lead">Ember is a to-do list that builds a daily streak. It works like a normal app once it's on your Home Screen, and it's free with no account.</p>
+      <ol class="steps">
+        <li><span class="step-n">1</span><span>Tap the <b>Share</b> button <span class="share-ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3v12M7.5 7.5 12 3l4.5 4.5M6 11H5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-1"/></svg></span> at the bottom of Safari</span></li>
+        <li><span class="step-n">2</span><span>Scroll down and tap <b>Add to Home Screen</b></span></li>
+        <li><span class="step-n">3</span><span>Tap <b>Add</b>, then open <b>Ember</b> from your Home Screen</span></li>
+      </ol>
+      <p class="muted small">Please open it from the Home Screen icon. A list started here in Safari won't carry over to the app.</p>
+    </div>
+    <div class="tour-foot">
+      <button class="link-btn" id="install-continue">Just look around in Safari</button>
     </div>
   </section>
 

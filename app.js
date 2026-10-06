@@ -5,7 +5,7 @@
 //  All data is kept in this browser's local storage.
 // ============================================================
 
-const APP_VERSION = '1.5.1';
+const APP_VERSION = '1.6.0';
 // The reminder service's web address. Reminders are switched off (and hidden
 // in the app) while this is empty. To turn them on, install the service in
 // worker/ on Cloudflare and put its address here.
@@ -1151,6 +1151,54 @@ function renderProgress() {
   }
 }
 
+// ---------- Welcome tour ----------
+
+let tourMode = 'first'; // 'first' = new person (leads into the questions), 'replay' = from Settings
+
+function openTour(mode) {
+  tourMode = mode;
+  $('tour').hidden = false;
+  $('tour-track').scrollLeft = 0;
+  const dots = $('tour-dots');
+  dots.replaceChildren(...[...$('tour-track').children].map(() => document.createElement('i')));
+  updateTour();
+}
+
+function tourIndex() {
+  const track = $('tour-track');
+  return Math.round(track.scrollLeft / Math.max(1, track.clientWidth));
+}
+
+function updateTour() {
+  const i = tourIndex();
+  const last = $('tour-track').children.length - 1;
+  [...$('tour-dots').children].forEach((d, k) => d.classList.toggle('on', k === i));
+  $('tour-back').style.visibility = i === 0 ? 'hidden' : 'visible';
+  $('tour-next').textContent = i < last ? 'Next' : tourMode === 'first' ? 'Get started' : 'Done';
+  $('tour-skip').style.visibility = i < last ? 'visible' : 'hidden';
+}
+
+function goToSlide(i) {
+  const track = $('tour-track');
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  track.scrollTo({ left: i * track.clientWidth, behavior: reduce ? 'auto' : 'smooth' });
+}
+
+function finishTour() {
+  $('tour').hidden = true;
+  state.meta.tourSeen = true;
+  save();
+  if (tourMode === 'first' && !state.profile) openOnboarding();
+}
+
+// What a brand-new person sees after the splash.
+function startFirstRun() {
+  if (state.profile) return;
+  if (state.meta.tourSeen) { openOnboarding(); return; }
+  if (isIOS() && !isInstalled()) $('install-page').hidden = false;
+  else openTour('first');
+}
+
 // ---------- Settings panel ----------
 
 function renderRepeatList() {
@@ -1381,6 +1429,17 @@ $('open-suggest').addEventListener('click', () => {
 });
 $('suggest-hide').addEventListener('click', () => setSuggestOpen(false));
 
+$('tour-track').addEventListener('scroll', () => requestAnimationFrame(updateTour), { passive: true });
+$('tour-next').addEventListener('click', () => {
+  const i = tourIndex();
+  if (i < $('tour-track').children.length - 1) goToSlide(i + 1); else finishTour();
+});
+$('tour-back').addEventListener('click', () => goToSlide(Math.max(0, tourIndex() - 1)));
+$('tour-skip').addEventListener('click', finishTour);
+$('replay-tour').addEventListener('click', () => { closeSheets(); openTour('replay'); });
+$('install-continue').addEventListener('click', () => { $('install-page').hidden = true; openTour('first'); });
+window.addEventListener('resize', () => { if (!$('tour').hidden) goToSlide(tourIndex()); });
+
 $('ob-next').addEventListener('click', () => {
   if (ob.step < 2) { ob.step++; renderOnboarding(); } else finishOnboarding(false);
 });
@@ -1401,7 +1460,7 @@ $('erase-btn').addEventListener('click', () => {
   save();
   closeSheets();
   runDailyCheck();
-  openOnboarding();
+  startFirstRun();
 });
 $('version').textContent = APP_VERSION;
 $('time-section').hidden = !REMINDER_API;
@@ -1414,7 +1473,7 @@ document.addEventListener('visibilitychange', () => {
 setInterval(() => { if (dateKey() !== currentDay) runDailyCheck(); }, 60 * 1000);
 
 runDailyCheck();
-if (!state.profile) openOnboarding();
+startFirstRun();
 
 // ---------- Press-down feel for every button ----------
 // Adds a "pressed" look the moment your finger lands, and keeps it long
