@@ -5,7 +5,7 @@
 //  All data is kept in this browser's local storage.
 // ============================================================
 
-const APP_VERSION = '1.10.0';
+const APP_VERSION = '1.11.0';
 // The reminder service's web address. Reminders are switched off (and hidden
 // in the app) while this is empty. To turn them on, install the service in
 // worker/ on Cloudflare and put its address here.
@@ -116,10 +116,27 @@ if (navigator.storage && navigator.storage.persist) {
 
 // ---------- Repeating to-dos ----------
 
+// kind: 'daily' | 'weekly' (days, every 1 or 2 weeks) | 'monthly' (dom = day of month)
 function repeatMatches(rule, day) {
   if (!rule.active || day < rule.startDate) return false;
   if (rule.kind === 'daily') return true;
-  return rule.days.includes(parseKey(day).getDay());
+  const d = parseKey(day);
+  if (rule.kind === 'monthly') {
+    const dom = rule.dom || parseKey(rule.startDate).getDate();
+    const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+    return d.getDate() === Math.min(dom, lastDay); // the 31st falls back to the month's last day
+  }
+  if (!rule.days.includes(d.getDay())) return false;
+  if ((rule.every || 1) > 1) {
+    const weeks = Math.round((dayNumber(weekOf(day)) - dayNumber(weekOf(rule.startDate))) / 7);
+    return weeks % rule.every === 0;
+  }
+  return true;
+}
+
+function ordinal(n) {
+  const s = n % 100 >= 11 && n % 100 <= 13 ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' }[n % 10] || 'th');
+  return n + s;
 }
 
 function addRepeatItemsFor(day) {
@@ -140,11 +157,14 @@ function addRepeatItemsFor(day) {
 
 function describeRepeat(rule) {
   if (rule.kind === 'daily') return 'Every day';
+  if (rule.kind === 'monthly') return `Monthly on the ${ordinal(rule.dom || parseKey(rule.startDate).getDate())}`;
   const days = [...rule.days].sort((a, b) => a - b);
-  if (days.length === 7) return 'Every day';
-  if (days.join() === '1,2,3,4,5') return 'Weekdays';
-  if (days.join() === '0,6') return 'Weekends';
-  return 'Every ' + days.map((d) => DAY_SHORT[d]).join(', ');
+  const two = (rule.every || 1) > 1;
+  if (days.length === 7) return two ? 'Every other week' : 'Every day';
+  if (days.join() === '1,2,3,4,5') return two ? 'Every 2 weeks on weekdays' : 'Weekdays';
+  if (days.join() === '0,6') return two ? 'Every 2 weeks on weekends' : 'Weekends';
+  const list = days.map((d) => DAY_SHORT[d]).join(', ');
+  return two ? `Every 2 weeks on ${list}` : `Every ${list}`;
 }
 
 // ---------- Queries ----------
@@ -153,9 +173,18 @@ function itemsForDay(day) {
   return state.items.filter((i) => i.date === day && !i.deleted);
 }
 
+function priorityRank(p) {
+  return p in PRIORITY_RANK ? PRIORITY_RANK[p] : 3;
+}
+
+// Unfinished first, then finished. If you've dragged things into your own
+// order on a day, that order wins; otherwise higher priority goes on top.
 function sortedItems(items) {
-  const rank = (p) => (p in PRIORITY_RANK ? PRIORITY_RANK[p] : 3);
-  const open = items.filter((i) => !i.done).sort((a, b) => rank(a.priority) - rank(b.priority) || a.createdAt - b.createdAt);
+  const rank = priorityRank;
+  const open = items.filter((i) => !i.done);
+  const manual = open.some((i) => typeof i.order === 'number');
+  const ord = (i) => (typeof i.order === 'number' ? i.order : 1e9);
+  open.sort((a, b) => (manual ? ord(a) - ord(b) : 0) || rank(a.priority) - rank(b.priority) || a.createdAt - b.createdAt);
   const done = items.filter((i) => i.done).sort((a, b) => (a.doneAt || 0) - (b.doneAt || 0));
   return open.concat(done);
 }
@@ -267,13 +296,141 @@ function addItem(text, extra = {}) {
   text = text.trim();
   if (!text) return;
   const guess = guessPriority(state, text, currentDay);
-  state.items.push({
+  const item = {
     id: uid(), text, date: extra.date || viewDay(), done: false, doneAt: null,
     priority: guess, prioritySource: guess ? 'guess' : null,
     repeatId: null, createdAt: Date.now(), ...extra,
-  });
+  };
+  placeInManualOrder(item);
+  state.items.push(item);
   save();
   render();
+}
+
+// On a day you've arranged by hand, slot a new to-do in by its priority
+// (above anything less important) instead of dropping it at the bottom.
+function placeInManualOrder(item) {
+  const open = sortedItems(itemsForDay(item.date)).filter((i) => !i.done);
+  if (!open.some((i) => typeof i.order === 'number')) return;
+  let at = open.findIndex((i) => priorityRank(i.priority) > priorityRank(item.priority));
+  if (at < 0) at = open.length;
+  open.splice(at, 0, item);
+  open.forEach((i, k) => { i.order = k; });
+}
+
+// ---------- Smarter typing ----------
+// Understands phrases like "Call mom tomorrow", "Gym every Monday and
+// Thursday", "Pay rent monthly on the 1st" or "Standup weekdays", and
+// turns them into a day or a repeat. The phrase is removed from the text.
+
+const DAY_WORDS = [
+  ['sunday', 'sun'], ['monday', 'mon'], ['tuesday', 'tues', 'tue'], ['wednesday', 'wed'],
+  ['thursday', 'thurs', 'thur', 'thu'], ['friday', 'fri'], ['saturday', 'sat'],
+];
+const DAY_ANY = DAY_WORDS.flat().sort((a, b) => b.length - a.length).join('|');
+const DAY_FULL = DAY_WORDS.map((w) => w[0]).join('|');
+const DAY_LIST = `(?:${DAY_ANY})(?:(?:\\s*,\\s*and\\s+|\\s*,\\s*|\\s+and\\s+|\\s*&\\s*)(?:${DAY_ANY}))*`;
+
+function dayIndex(word) {
+  return DAY_WORDS.findIndex((w) => w.includes(word.toLowerCase()));
+}
+function daysIn(list) {
+  return [...new Set(list.toLowerCase().split(/\s*,\s*and\s+|\s*,\s*|\s+and\s+|\s*&\s*/).map(dayIndex).filter((d) => d >= 0))].sort((a, b) => a - b);
+}
+// The next date (from `from`, inclusive) that falls on one of `days`.
+function nextOn(days, from) {
+  for (let k = 0; k < 7; k++) {
+    const d = addDays(from, k);
+    if (days.includes(parseKey(d).getDay())) return d;
+  }
+  return from;
+}
+
+function parseQuick(input, baseDay) {
+  let text = ` ${input} `;
+  let repeat = null, date = null;
+  const take = (re, fn) => {
+    if (repeat || date) return;
+    const m = text.match(re);
+    if (!m) return;
+    if (fn(m) === false) return;
+    text = text.slice(0, m.index) + ' ' + text.slice(m.index + m[0].length);
+  };
+  const R = (src) => new RegExp(src, 'i');
+
+  // Repeats
+  take(R(`\\s(?:every\\s?day|daily)(?=\\s)`), () => { repeat = { kind: 'daily' }; });
+  take(R(`\\s(?:every\\s+weekday|(?:on\\s+|every\\s+)?weekdays)(?=\\s)`), () => { repeat = { kind: 'weekly', days: [1, 2, 3, 4, 5], every: 1 }; });
+  take(R(`\\s(?:every\\s+weekend|(?:on\\s+|every\\s+)?weekends)(?=\\s)`), () => { repeat = { kind: 'weekly', days: [0, 6], every: 1 }; });
+  take(R(`\\s(?:every|each)\\s+month(?:\\s+on\\s+the\\s+(\\d{1,2})(?:st|nd|rd|th)?)?(?=\\s)|\\smonthly(?:\\s+on\\s+the\\s+(\\d{1,2})(?:st|nd|rd|th)?)?(?=\\s)|\\son\\s+the\\s+(\\d{1,2})(?:st|nd|rd|th)?\\s+(?:of\\s+)?(?:every|each)\\s+month(?=\\s)`), (m) => {
+    const n = Number(m[1] || m[2] || m[3] || parseKey(baseDay).getDate());
+    if (n < 1 || n > 31) return false;
+    repeat = { kind: 'monthly', dom: n };
+  });
+  take(R(`\\s(?:every\\s+(?:other|2nd|second|2)\\s+weeks?|biweekly)(?:\\s+on\\s+(${DAY_LIST}))?(?=\\s)`), (m) => {
+    repeat = { kind: 'weekly', days: m[1] ? daysIn(m[1]) : [parseKey(baseDay).getDay()], every: 2 };
+  });
+  take(R(`\\severy\\s+other\\s+(${DAY_LIST})(?=\\s)`), (m) => { repeat = { kind: 'weekly', days: daysIn(m[1]), every: 2 }; });
+  take(R(`\\s(?:every|each)\\s+(${DAY_LIST})(?=\\s)`), (m) => { repeat = { kind: 'weekly', days: daysIn(m[1]), every: 1 }; });
+  take(R(`\\s(?:every\\s+week|weekly)(?:\\s+on\\s+(${DAY_LIST}))?(?=\\s)`), (m) => {
+    repeat = { kind: 'weekly', days: m[1] ? daysIn(m[1]) : [parseKey(baseDay).getDay()], every: 1 };
+  });
+
+  // A single day
+  take(R(`\\s(?:today|tonight)(?=\\s)`), () => { date = currentDay; });
+  take(R(`\\s(?:tomorrow|tmrw|tmr)(?=\\s)`), () => { date = addDays(currentDay, 1); });
+  // Full day names anywhere; short ones ("fri") only after on/next/this.
+  take(R(`\\s(?:(?:on|next|this)\\s+(${DAY_ANY})|(${DAY_FULL}))(?=\\s)`), (m) => {
+    const word = (m[1] || m[2]).toLowerCase();
+    const target = dayIndex(word);
+    let d = nextOn([target], currentDay);
+    if (/\snext\s/i.test(m[0]) && d === currentDay) d = addDays(d, 7);
+    date = d;
+  });
+
+  text = text.replace(/\s+/g, ' ').trim().replace(/\s+(?:on|at|by|for)$/i, '').trim();
+  if (!text || (!repeat && !date)) return { text: input.trim(), repeat: null, date: null };
+  return { text, repeat, date };
+}
+
+function describeQuick(q) {
+  if (q.repeat) return '↻ ' + describeRepeat({ ...q.repeat, startDate: currentDay });
+  if (q.date === currentDay) return '📅 Today';
+  if (q.date === addDays(currentDay, 1)) return '📅 Tomorrow';
+  return '📅 ' + parseKey(q.date).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
+}
+
+let quickIgnored = false; // you tapped ✕ on the hint for this entry
+
+function renderQuickHint() {
+  const value = $('add-input').value;
+  const q = value.trim() && !quickIgnored ? parseQuick(value, viewDay()) : null;
+  const show = !!(q && (q.repeat || q.date) && !(q.date && !q.repeat && q.date === viewDay()));
+  $('quick-hint').hidden = !show;
+  if (show) $('quick-hint-text').textContent = `“${q.text}” · ${describeQuick(q)}`;
+}
+
+// Adds what you typed, using any day or repeat it understood.
+function addFromInput(value) {
+  const q = quickIgnored ? { text: value.trim(), repeat: null, date: null } : parseQuick(value, viewDay());
+  if (!q.text) return;
+  if (q.repeat) {
+    const start = q.repeat.kind === 'daily' ? viewDay()
+      : q.repeat.kind === 'monthly' ? viewDay()
+      : nextOn(q.repeat.days, viewDay());
+    const rule = { id: uid(), text: q.text, kind: q.repeat.kind, days: q.repeat.days || [], every: q.repeat.every || 1,
+      dom: q.repeat.dom, priority: null, time: null, startDate: start, active: true };
+    state.repeats.push(rule);
+    addRepeatItemsFor(currentDay);
+    if (viewTomorrow) addRepeatItemsFor(addDays(currentDay, 1));
+    save();
+    render();
+    showToast(`Repeats: ${describeRepeat(rule)}`);
+    return;
+  }
+  const date = q.date || viewDay();
+  addItem(q.text, { date });
+  if (date !== viewDay()) showToast(date === addDays(currentDay, 1) ? 'Added for tomorrow' : `Added for ${describeQuick({ date }).slice(3)}`);
 }
 
 // Checking an item off happens in two steps so it feels like a button:
@@ -571,6 +728,64 @@ const NUDGE_CHEERS = ['Even 10 minutes counts.', 'A small step still counts.', '
 
 const CHECK_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
+// ----- Drag to reorder -----
+
+function startDrag(row) {
+  const wrap = row.parentElement;
+  const list = $('list');
+  const all = [...list.children];
+  const open = all.filter((w) => !w.querySelector('.item.done'));
+  const from = open.indexOf(wrap);
+  if (from < 0) return null;
+  const tops = open.map((w) => w.getBoundingClientRect().top);
+  const step = open.length > 1 ? tops[1] - tops[0] : wrap.offsetHeight + 8;
+  haptic();
+  wrap.classList.add('lifted');
+  list.classList.add('reordering');
+  const rowH = wrap.getBoundingClientRect().height;
+  return { wrap, open, from, to: from, tops, rowH, height: rowH + 8, step };
+}
+
+function moveDrag(d, dy) {
+  if (!d) return;
+  const { wrap, open, from, tops, height } = d;
+  const min = tops[0] - tops[from], max = tops[open.length - 1] - tops[from];
+  const y = Math.max(min - 12, Math.min(max + 12, dy));
+  wrap.style.transform = `translateY(${y}px) scale(1.03)`;
+  // Work out the new spot from where the middle of the lifted row is.
+  const mid = tops[from] + y + d.rowH / 2;
+  // New position = how many of the other rows now have their middle above it.
+  // (A tie goes the way you're dragging.)
+  const above = (c) => (y > 0 ? c <= mid : c < mid);
+  d.to = open.reduce((n, w, k) => n + (k !== from && above(tops[k] + d.rowH / 2) ? 1 : 0), 0);
+  open.forEach((w, k) => {
+    if (w === wrap) return;
+    let shift = 0;
+    if (from < d.to && k > from && k <= d.to) shift = -height;
+    if (from > d.to && k < from && k >= d.to) shift = height;
+    w.style.transform = shift ? `translateY(${shift}px)` : '';
+  });
+}
+
+function endDrag(d) {
+  if (!d) return;
+  const { wrap, open, from, to } = d;
+  const list = $('list');
+  wrap.classList.remove('lifted');
+  list.classList.remove('reordering');
+  open.forEach((w) => { w.style.transform = ''; });
+  if (from === to) return;
+  const ids = open.map((w) => w.dataset.id);
+  const [moved] = ids.splice(from, 1);
+  ids.splice(to, 0, moved);
+  ids.forEach((id, k) => {
+    const it = state.items.find((i) => i.id === id);
+    if (it) it.order = k;
+  });
+  save();
+  renderList();
+}
+
 function renderList({ animate = false } = {}) {
   const items = sortedItems(itemsForDay(viewDay()));
   const list = $('list');
@@ -620,7 +835,7 @@ function renderList({ animate = false } = {}) {
     // 🎯 Goal tag, or a gentle nudge if a goal to-do keeps getting pushed.
     const goal = goalFor(state, item);
     const pushes = goal && !item.done ? pushCount(state, item, currentDay) : 0;
-    if (goal && pushes < NUDGE_AFTER) meta.push('🎯 ' + goal.text);
+    if (goal && pushes < NUDGE_AFTER) meta.push('For ' + goal.text);
     if (meta.length) {
       const m = document.createElement('span');
       m.className = 'item-meta';
@@ -632,7 +847,7 @@ function renderList({ animate = false } = {}) {
       nudge.className = 'item-nudge';
       const what = item.repeatId ? `Skipped ${pushes} times this week` : `Pushed ${pushes} times`;
       const cheer = NUDGE_CHEERS[hashString(item.id + currentDay) % NUDGE_CHEERS.length];
-      nudge.textContent = `🎯 ${what}. It's for ${goal.text}. ${cheer}`;
+      nudge.textContent = `${what}. It's for ${goal.text}. ${cheer}`;
       body.appendChild(nudge);
       row.classList.add('nudged');
     }
@@ -664,20 +879,34 @@ function renderList({ animate = false } = {}) {
 }
 
 // Swipe left on an item to delete it.
+// Swipe left to delete; press and hold, then drag, to reorder.
+const HOLD_MS = 350;
+
 function enableSwipe(row, item) {
-  let startX = 0, startY = 0, dx = 0, mode = null; // mode: null | 'swipe' | 'scroll'
+  let startX = 0, startY = 0, dx = 0, mode = null; // mode: null | 'swipe' | 'scroll' | 'drag'
+  let holdTimer = null, drag = null;
 
   row.addEventListener('touchstart', (e) => {
     const t = e.touches[0];
     startX = t.clientX; startY = t.clientY; dx = 0; mode = null;
     delete row.dataset.swiped;
+    clearTimeout(holdTimer);
+    if (!item.done && !e.target.closest('.check')) {
+      holdTimer = setTimeout(() => { if (!mode) { mode = 'drag'; drag = startDrag(row); } }, HOLD_MS);
+    }
   }, { passive: true });
 
   row.addEventListener('touchmove', (e) => {
     const t = e.touches[0];
     const mx = t.clientX - startX, my = t.clientY - startY;
+    if (mode === 'drag') {
+      e.preventDefault();
+      moveDrag(drag, my);
+      return;
+    }
     if (!mode) {
       if (Math.abs(mx) < 8 && Math.abs(my) < 8) return;
+      clearTimeout(holdTimer);
       mode = Math.abs(mx) > Math.abs(my) && mx < 0 ? 'swipe' : 'scroll';
       if (mode === 'swipe') {
         row.classList.add('dragging');
@@ -691,6 +920,14 @@ function enableSwipe(row, item) {
   }, { passive: false });
 
   const end = () => {
+    clearTimeout(holdTimer);
+    if (mode === 'drag') {
+      row.dataset.swiped = '1'; // don't also open the edit panel
+      endDrag(drag);
+      drag = null;
+      mode = null;
+      return;
+    }
     if (mode !== 'swipe') return;
     row.classList.remove('dragging');
     row.dataset.swiped = '1';
@@ -720,6 +957,10 @@ function setSeg(groupId, value) {
 function renderDays() {
   const box = $('edit-days');
   box.hidden = editing.repeatKind !== 'weekly';
+  $('edit-weekly-extra').hidden = editing.repeatKind !== 'weekly';
+  $('edit-monthly').hidden = editing.repeatKind !== 'monthly';
+  setSeg('edit-every', String(editing.every));
+  $('edit-dom').value = String(editing.dom);
   box.replaceChildren();
   DAY_LETTERS.forEach((letter, n) => {
     const b = document.createElement('button');
@@ -736,9 +977,11 @@ function renderDays() {
   const note = $('repeat-note');
   note.hidden = !editing.repeatKind;
   if (editing.repeatKind === 'weekly') {
-    note.textContent = editing.days.length ? describeRepeat({ kind: 'weekly', days: editing.days }) + '. It will show up on those days by itself.' : 'Pick at least one day.';
+    note.textContent = editing.days.length ? describeRepeat({ kind: 'weekly', days: editing.days, every: editing.every }) + '. It will show up on those days by itself.' : 'Pick at least one day.';
   } else if (editing.repeatKind === 'daily') {
     note.textContent = 'It will show up every day by itself.';
+  } else if (editing.repeatKind === 'monthly') {
+    note.textContent = editing.dom > 28 ? 'In shorter months it shows up on the last day.' : 'It will show up that day each month by itself.';
   }
 }
 
@@ -751,6 +994,8 @@ function openEdit(id) {
     priority: item.priority || '',
     repeatKind: rule ? rule.kind : '',
     days: rule && rule.kind === 'weekly' ? [...rule.days] : [parseKey(item.date).getDay()],
+    every: rule && rule.every ? rule.every : 1,
+    dom: rule && rule.kind === 'monthly' ? (rule.dom || parseKey(rule.startDate).getDate()) : parseKey(item.date).getDate(),
   };
   $('edit-text').value = item.text;
   $('edit-time').value = item.time || '';
@@ -788,6 +1033,8 @@ function saveEdit() {
     rule.time = item.time;
     rule.kind = editing.repeatKind;
     rule.days = editing.repeatKind === 'weekly' ? [...editing.days].sort((a, b) => a - b) : [];
+    rule.every = editing.repeatKind === 'weekly' ? editing.every : 1;
+    rule.dom = editing.repeatKind === 'monthly' ? editing.dom : undefined;
   } else if (rule) {
     // Stop repeating; keep today's copy as a normal to-do.
     rule.active = false;
@@ -1557,9 +1804,16 @@ function runDailyCheck() {
 $('add-form').addEventListener('submit', (e) => {
   e.preventDefault();
   const input = $('add-input');
-  addItem(input.value);
+  addFromInput(input.value);
   input.value = '';
+  quickIgnored = false;
+  renderQuickHint();
 });
+$('add-input').addEventListener('input', () => {
+  if (!$('add-input').value.trim()) quickIgnored = false;
+  renderQuickHint();
+});
+$('quick-hint-off').addEventListener('click', () => { quickIgnored = true; renderQuickHint(); $('add-input').focus(); });
 
 $('edit-priority').addEventListener('click', (e) => {
   const b = e.target.closest('button');
@@ -1574,6 +1828,17 @@ $('edit-repeat').addEventListener('click', (e) => {
   setSeg('edit-repeat', editing.repeatKind);
   renderDays();
 });
+$('edit-every').addEventListener('click', (e) => {
+  const b = e.target.closest('button');
+  if (!b || !editing) return;
+  editing.every = Number(b.dataset.value);
+  renderDays();
+});
+$('edit-weekdays').addEventListener('click', () => { if (editing) { editing.days = [1, 2, 3, 4, 5]; renderDays(); } });
+$('edit-dom').replaceChildren(...Array.from({ length: 31 }, (_, k) => {
+  const o = document.createElement('option'); o.value = String(k + 1); o.textContent = ordinal(k + 1); return o;
+}));
+$('edit-dom').addEventListener('change', () => { if (editing) { editing.dom = Number($('edit-dom').value); renderDays(); } });
 $('edit-text').addEventListener('keydown', (e) => { if (e.key === 'Enter') saveEdit(); });
 $('edit-save').addEventListener('click', saveEdit);
 $('edit-cancel').addEventListener('click', closeSheets);

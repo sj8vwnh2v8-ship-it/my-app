@@ -639,3 +639,27 @@ button.pressed, .chip.pressed {
 /* ---------- Goal nudge ---------- */
 .item-nudge { display: block; font-size: 13px; line-height: 1.35; color: var(--accent); margin-top: 3px; }
 .item.nudged { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
+
+/* ---------- Smarter typing hint ---------- */
+.quick-hint {
+  display: flex; align-items: center; gap: 8px; max-width: 608px; margin: 8px auto 0;
+  background: rgba(255, 255, 255, 0.14); color: #fff; border-radius: 10px; padding: 6px 6px 6px 12px; font-size: 14px;
+}
+.quick-hint span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.quick-hint button { border: 0; background: rgba(255, 255, 255, 0.18); color: #fff; width: 28px; height: 28px; border-radius: 50%; flex: none; font-size: 13px; }
+
+/* ---------- More repeat options ---------- */
+.weekly-extra { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+.weekly-extra .seg { flex: 1; }
+.weekly-extra .seg button { font-size: 14px; }
+.monthly-row { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 15px; }
+.monthly-row select {
+  font: inherit; font-size: 16px; color: var(--text); background: var(--surface-2);
+  border: 1px solid var(--border); border-radius: 10px; padding: 7px 10px;
+}
+
+/* ---------- Drag to reorder ---------- */
+.item { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.list.reordering .item-wrap { transition: transform 0.18s ease; }
+.list.reordering .item-wrap.lifted { transition: none; z-index: 5; overflow: visible; }
+.item-wrap.lifted .item { box-shadow: 0 12px 28px rgba(0, 0, 0, 0.22); border-color: var(--accent); }

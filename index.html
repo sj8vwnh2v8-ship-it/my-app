@@ -109,6 +109,10 @@
       <input id="add-input" type="text" placeholder="Add something for today…" enterkeyhint="done" maxlength="200" aria-label="New to-do">
       <button type="submit" class="add-btn" aria-label="Add">+</button>
     </form>
+    <div id="quick-hint" class="quick-hint" hidden>
+      <span id="quick-hint-text"></span>
+      <button type="button" id="quick-hint-off" aria-label="Ignore this and add the text as typed">✕</button>
+    </div>
   </header>
 
   <main>
@@ -167,7 +171,7 @@
     </div>
 
     <p id="all-done" class="all-done" hidden>Everything's done for today. Nice work.</p>
-    <p class="hint muted" id="swipe-hint" hidden>Tip: tap an item to edit it, or swipe it left to delete.</p>
+    <p class="hint muted" id="swipe-hint" hidden>Tip: tap to edit, swipe left to delete, or press and hold to drag it.</p>
   </main>
 
   <!-- Edit panel -->
@@ -193,8 +197,21 @@
       <button type="button" data-value="" role="radio">Never</button>
       <button type="button" data-value="daily" role="radio">Daily</button>
       <button type="button" data-value="weekly" role="radio">Weekly</button>
+      <button type="button" data-value="monthly" role="radio">Monthly</button>
     </div>
     <div id="edit-days" class="days" hidden></div>
+    <div id="edit-weekly-extra" class="weekly-extra" hidden>
+      <div class="seg" id="edit-every" role="radiogroup" aria-label="How often">
+        <button type="button" data-value="1" role="radio">Every week</button>
+        <button type="button" data-value="2" role="radio">Every 2 weeks</button>
+      </div>
+      <button type="button" class="link-btn" id="edit-weekdays">Weekdays</button>
+    </div>
+    <div id="edit-monthly" class="monthly-row" hidden>
+      <label for="edit-dom">On day</label>
+      <select id="edit-dom"></select>
+      <span>of every month</span>
+    </div>
     <p id="repeat-note" class="muted small" hidden></p>
 
     <div id="time-section">
@@ -350,6 +367,8 @@
             <li><b>Done:</b> tap the circle to check it off</li>
             <li><b>Edit:</b> tap a to-do to change it</li>
             <li><b>Delete:</b> swipe it left (tap <b>Undo</b> if you slip)</li>
+            <li><b>Reorder:</b> press and hold a to-do, then drag it</li>
+            <li><b>Shortcuts:</b> type “Call mom tomorrow” or “Gym every Monday” and Ember sets the day or repeat for you</li>
           </ul>
         </div>
       </article>
@@ -420,7 +439,7 @@
             <li>Next, you'll pick a few <b>hobbies and goals</b> (or skip)</li>
             <li>Tap <b>💡</b> at the top for suggestions. <b>✓</b> adds one, <b>✕</b> skips it</li>
             <li>After a week, Ember also learns what you usually add on which days</li>
-            <li>To-dos that help a goal get a <b>🎯</b>. If one keeps getting pushed back, Ember gives you a gentle nudge</li>
+            <li>To-dos that help a goal show which goal they're for. If one keeps getting pushed back, Ember gives you a gentle nudge</li>
           </ul>
         </div>
       </article>
