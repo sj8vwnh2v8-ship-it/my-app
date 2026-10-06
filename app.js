@@ -5,7 +5,7 @@
 //  All data is kept in this browser's local storage.
 // ============================================================
 
-const APP_VERSION = '1.0.2';
+const APP_VERSION = '1.0.3';
 const STORE_KEY = 'today-app-data';
 const PRIORITY_RANK = { high: 0, med: 1, low: 2 };
 const PRIORITY_LABEL = { high: 'High', med: 'Medium', low: 'Low' };
@@ -734,6 +734,19 @@ document.addEventListener('visibilitychange', () => {
 setInterval(() => { if (dateKey() !== currentDay) runDailyCheck(); }, 60 * 1000);
 
 runDailyCheck();
+
+// ---------- Splash screen ----------
+// Shown for about a second when the app opens, then it fades away.
+(function hideSplash() {
+  const splash = $('splash');
+  if (!splash) return;
+  const SPLASH_MS = 1000;
+  setTimeout(() => {
+    splash.classList.add('leaving');
+    document.documentElement.classList.remove('booting');
+    setTimeout(() => splash.remove(), 400);
+  }, Math.max(0, SPLASH_MS - performance.now()));
+})();
 
 // ---------- Offline support ----------
 if ('serviceWorker' in navigator) {

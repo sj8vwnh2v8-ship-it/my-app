@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="booting">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -16,8 +16,50 @@
   <link rel="icon" href="icons/icon-192.png">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="styles.css">
+  <!-- Splash screen styles live here (not in styles.css) so they show instantly -->
+  <style>
+    html.booting, html.booting body { background: #2f6f5e; }
+    #splash {
+      position: fixed; inset: 0; z-index: 100;
+      background: #2f6f5e;
+      display: flex; align-items: center; justify-content: center;
+      transition: opacity 0.35s ease;
+    }
+    #splash svg {
+      width: 112px; height: 112px;
+      animation: splash-in 0.5s cubic-bezier(0.3, 1.5, 0.5, 1) both;
+      transition: transform 0.35s ease;
+    }
+    #splash .splash-check {
+      stroke-dasharray: 72; stroke-dashoffset: 72;
+      animation: splash-draw 0.4s ease 0.3s forwards;
+    }
+    #splash.leaving { opacity: 0; pointer-events: none; }
+    #splash.leaving svg { transform: scale(1.15); }
+    @keyframes splash-in { from { transform: scale(0.7); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+    @keyframes splash-draw { to { stroke-dashoffset: 0; } }
+    @media (prefers-reduced-motion: reduce) {
+      #splash svg, #splash .splash-check { animation: none; stroke-dashoffset: 0; }
+    }
+  </style>
 </head>
 <body>
+  <div id="splash" aria-hidden="true">
+    <svg viewBox="0 0 120 120" fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="60" cy="60" r="52" stroke-width="10"/>
+      <path class="splash-check" d="M37 61 L52 76 L82 45" stroke-width="12"/>
+    </svg>
+  </div>
+  <script>
+    // Only show the splash when the app is freshly opened, not on a reload.
+    try {
+      if (sessionStorage.getItem('splash-shown')) {
+        document.getElementById('splash').remove();
+        document.documentElement.classList.remove('booting');
+      }
+      sessionStorage.setItem('splash-shown', '1');
+    } catch (e) {}
+  </script>
   <header class="top">
     <div class="top-row">
       <div>
