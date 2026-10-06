@@ -5,7 +5,7 @@
 //  All data is kept in this browser's local storage.
 // ============================================================
 
-const APP_VERSION = '1.16.1';
+const APP_VERSION = '1.17.0';
 // The reminder service's web address. Reminders are switched off (and hidden
 // in the app) while this is empty. To turn them on, install the service in
 // worker/ on Cloudflare and put its address here.
@@ -613,9 +613,8 @@ function afterWrapUp(message, undo) {
   render();
   const today = itemsForDay(currentDay);
   if (today.length && today.every((i) => i.done)) {
-    // Everything left is done now, so the day counts. Celebrate, but keep Undo.
-    celebrate();
-    setTimeout(() => showToast(`${message} · Day complete! 🔥 ${computeStreak()}`, 'Undo', undo), 350);
+    // Everything left is done now, so the day counts. Celebrate, then offer Undo.
+    celebrate(() => showToast(message, 'Undo', undo));
   } else {
     showToast(message, 'Undo', undo);
   }
@@ -1538,9 +1537,13 @@ function renderBackupNudge() {
 
 // ---------- Celebration (when you finish the whole day) ----------
 
-function celebrate() {
+// Runs once the day-complete or milestone screen closes (e.g. to offer Undo).
+let afterCelebration = null;
+
+function celebrate(after) {
   const info = streakInfo();
   const n = info.streak;
+  afterCelebration = after || null;
   playSound('complete');
   const pill = $('streak');
   pill.classList.remove('bump');
@@ -1552,10 +1555,48 @@ function celebrate() {
     showMilestone(n, info.earnedToday);
     return;
   }
-  let msg = n > 1 ? `All done! 🔥 ${n}-day streak` : 'All done for today! 🎉';
-  if (info.earnedToday) msg += ' · You earned a ❄️ freeze!';
-  setTimeout(() => showToast(msg), 300);
-  burstConfetti(90);
+  showDayComplete(n, info.earnedToday);
+}
+
+function finishCelebration() {
+  const after = afterCelebration;
+  afterCelebration = null;
+  if (after) after();
+}
+
+// ---------- Day complete: the flame flares up ----------
+
+const DAYEND_MS = 2600;
+let dayEndTimer = null;
+
+function showDayComplete(n, earnedFreeze) {
+  const box = $('dayend');
+  const num = $('dayend-num');
+  const from = Math.max(0, n - 1);
+  num.textContent = from;
+  $('dayend-unit').textContent = n === 1 ? 'day in a row' : 'days in a row';
+  $('dayend-freeze').hidden = !earnedFreeze;
+  box.classList.remove('leaving', 'counted');
+  box.hidden = false;
+  void box.offsetWidth; // restart the animations
+  box.classList.add('playing');
+  haptic();
+  // Count up as the flame peaks.
+  setTimeout(() => { num.textContent = n; box.classList.add('counted'); }, 650);
+  clearTimeout(dayEndTimer);
+  dayEndTimer = setTimeout(closeDayComplete, DAYEND_MS);
+}
+
+function closeDayComplete() {
+  const box = $('dayend');
+  if (box.hidden || box.classList.contains('leaving')) return;
+  clearTimeout(dayEndTimer);
+  box.classList.add('leaving');
+  setTimeout(() => {
+    box.hidden = true;
+    box.classList.remove('playing', 'leaving', 'counted');
+    finishCelebration();
+  }, 450);
 }
 
 function burstConfetti(count, originY = 0.38) {
@@ -2061,7 +2102,8 @@ function setView(tomorrow) {
 }
 $('view-today').addEventListener('click', () => setView(false));
 $('recap-ok').addEventListener('click', () => { state.meta.recapSeen = currentDay; save(); render(); });
-$('milestone-ok').addEventListener('click', () => { $('milestone').hidden = true; });
+$('milestone-ok').addEventListener('click', () => { $('milestone').hidden = true; finishCelebration(); });
+$('dayend').addEventListener('click', closeDayComplete);
 $('share-list').addEventListener('click', shareList);
 $('sound-toggle').addEventListener('change', (e) => {
   state.meta.sounds = e.target.checked;

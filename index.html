@@ -329,6 +329,17 @@
     </ul>
   </section>
 
+  <!-- Day complete: the flame flares up -->
+  <section id="dayend" class="dayend" role="dialog" aria-modal="true" aria-labelledby="dayend-title" hidden>
+    <div class="dayend-glow"></div>
+    <svg class="dayend-flame" viewBox="128 70 256 366" aria-hidden="true"><path class="flame-outer" d="M256 70 C 290 140, 384 196, 384 302 C 384 376, 326 436, 256 436 C 186 436, 128 376, 128 302 C 128 240, 166 202, 196 174 C 198 220, 214 248, 240 258 C 228 190, 232 126, 256 70 Z" fill="#fff4e6"/><path class="flame-inner" d="M256 232 C 274 270, 320 296, 320 348 C 320 386, 292 412, 256 412 C 220 412, 192 386, 192 350 C 192 318, 212 298, 228 284 C 232 306, 240 318, 252 322 C 244 290, 246 262, 256 232 Z" fill="#ffb347"/></svg>
+    <div class="dayend-num" id="dayend-num">0</div>
+    <div class="dayend-unit" id="dayend-unit">days in a row</div>
+    <h2 class="dayend-title" id="dayend-title">Day complete</h2>
+    <p class="dayend-freeze" id="dayend-freeze" hidden>You earned a ❄️ freeze!</p>
+    <p class="dayend-hint">tap anywhere</p>
+  </section>
+
   <!-- "Want reminders?" pop-up -->
   <section id="remind-prompt" class="milestone" role="dialog" aria-modal="true" aria-labelledby="remind-prompt-title" hidden>
     <div class="milestone-card remind-card">
