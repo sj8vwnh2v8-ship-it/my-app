@@ -5,7 +5,7 @@
 //  All data is kept in this browser's local storage.
 // ============================================================
 
-const APP_VERSION = '1.0.4';
+const APP_VERSION = '1.1.0';
 const STORE_KEY = 'today-app-data';
 const PRIORITY_RANK = { high: 0, med: 1, low: 2 };
 const PRIORITY_LABEL = { high: 'High', med: 'Medium', low: 'Low' };
@@ -49,9 +49,27 @@ function uid() {
 // repeats: rules that create an item automatically on matching days.
 //          { id, text, kind: 'daily' | 'weekly', days: [0-6], priority, startDate, active }
 // meta:    { firstUseDate, lastOpenDate, tipDismissed }
+// profile: your hobbies and goals (null until you answer or skip the questions).
+//          { hobbies: [text], goals: [{ id, text, freq: 'daily' | 'few' | 'weekly' }] }
+// suggest: { dismissed: { text: count }, today: { date, handled: [text] } }
+//
+// Items also remember where their color came from (prioritySource:
+// 'user' = you picked it, 'guess' = the app guessed) and, if they came from
+// a suggestion, which one (suggestFrom).
 
 function freshState() {
-  return { version: 1, items: [], repeats: [], meta: { firstUseDate: dateKey(), lastOpenDate: null } };
+  return upgrade({ version: 1, items: [], repeats: [], meta: { firstUseDate: dateKey(), lastOpenDate: null } });
+}
+
+// Fill in anything older saved data is missing.
+function upgrade(s) {
+  if (!('profile' in s)) s.profile = null;
+  if (!s.suggest) s.suggest = { dismissed: {}, today: null };
+  if (!s.suggest.dismissed) s.suggest.dismissed = {};
+  for (const i of s.items) {
+    if (i.priority && !i.prioritySource) i.prioritySource = 'user';
+  }
+  return s;
 }
 
 function isValidState(s) {
@@ -63,7 +81,7 @@ function load() {
     const raw = localStorage.getItem(STORE_KEY);
     if (!raw) return freshState();
     const parsed = JSON.parse(raw);
-    return isValidState(parsed) ? parsed : freshState();
+    return isValidState(parsed) ? upgrade(parsed) : freshState();
   } catch (e) {
     return freshState();
   }
@@ -101,7 +119,8 @@ function addRepeatItemsFor(day) {
     if (exists) continue;
     state.items.push({
       id: uid(), text: rule.text, date: day, done: false, doneAt: null,
-      priority: rule.priority || null, repeatId: rule.id, createdAt: Date.now(),
+      priority: rule.priority || null, prioritySource: rule.priority ? 'user' : null,
+      repeatId: rule.id, createdAt: Date.now(),
     });
     changed = true;
   }
@@ -168,12 +187,14 @@ function computeStreak() {
 
 // ---------- Actions ----------
 
-function addItem(text) {
+function addItem(text, extra = {}) {
   text = text.trim();
   if (!text) return;
+  const guess = guessPriority(state, text, currentDay);
   state.items.push({
     id: uid(), text, date: currentDay, done: false, doneAt: null,
-    priority: null, repeatId: null, createdAt: Date.now(),
+    priority: guess, prioritySource: guess ? 'guess' : null,
+    repeatId: null, createdAt: Date.now(), ...extra,
   });
   save();
   render();
@@ -255,7 +276,8 @@ function carryOver(id, bring) {
     item.carry = 'moved';
     state.items.push({
       id: uid(), text: item.text, date: currentDay, done: false, doneAt: null,
-      priority: item.priority || null, repeatId: null, createdAt: Date.now(), carriedFrom: item.id,
+      priority: item.priority || null, prioritySource: item.prioritySource || null,
+      repeatId: null, createdAt: Date.now(), carriedFrom: item.id, suggestFrom: item.suggestFrom,
     });
   } else {
     item.carry = 'dropped';
@@ -270,6 +292,7 @@ function render() {
   renderHeader();
   renderInstallTip();
   renderCarryOver();
+  renderSuggestions();
   renderList();
 }
 
@@ -351,7 +374,8 @@ function renderList({ animate = false } = {}) {
     label.textContent = 'Delete';
 
     const row = document.createElement('div');
-    row.className = 'item' + (item.priority ? ` p-${item.priority}` : '') + (item.done ? ' done' : '');
+    const guessed = item.priority && item.prioritySource === 'guess';
+    row.className = 'item' + (item.priority ? ` p-${item.priority}` : '') + (guessed ? ' guess' : '') + (item.done ? ' done' : '');
 
     const check = document.createElement('button');
     check.className = 'check';
@@ -368,7 +392,7 @@ function renderList({ animate = false } = {}) {
     body.appendChild(text);
 
     const meta = [];
-    if (item.priority) meta.push(PRIORITY_LABEL[item.priority]);
+    if (item.priority) meta.push((guessed ? 'Guessed: ' : '') + PRIORITY_LABEL[item.priority]);
     if (item.repeatId) {
       const rule = state.repeats.find((r) => r.id === item.repeatId);
       if (rule && rule.active) meta.push('↻ ' + describeRepeat(rule));
@@ -513,6 +537,8 @@ function saveEdit() {
 
   item.text = text;
   item.priority = editing.priority || null;
+  // Saving the panel counts as you choosing the color (even if it was guessed).
+  item.prioritySource = item.priority ? 'user' : null;
 
   let rule = item.repeatId ? state.repeats.find((r) => r.id === item.repeatId) : null;
   if (editing.repeatKind) {
@@ -535,6 +561,217 @@ function saveEdit() {
   save();
   closeSheets();
   render();
+}
+
+// ---------- Suggestions ----------
+
+let previewSuggestions = false; // turned on by the button in Settings, until the app is closed
+
+function renderSuggestions() {
+  const card = $('suggest');
+  const show = state.profile && (previewSuggestions || suggestionsUnlocked(state));
+  const list = show ? getSuggestions(state, currentDay) : [];
+  card.hidden = list.length === 0;
+  const ul = $('suggest-list');
+  ul.replaceChildren();
+  for (const sug of list) {
+    const li = document.createElement('li');
+    const text = document.createElement('span');
+    text.className = 'sug-text';
+    text.textContent = sug.text;
+    const why = document.createElement('span');
+    why.className = 'sug-why';
+    why.textContent = sug.reason;
+    text.appendChild(why);
+
+    const no = document.createElement('button');
+    no.className = 'sug-btn no';
+    no.setAttribute('aria-label', `Dismiss "${sug.text}"`);
+    no.textContent = '✕';
+    no.addEventListener('click', () => handleSuggestion(sug, false));
+    const yes = document.createElement('button');
+    yes.className = 'sug-btn yes';
+    yes.setAttribute('aria-label', `Add "${sug.text}"`);
+    yes.textContent = '✓';
+    yes.addEventListener('click', () => handleSuggestion(sug, true));
+
+    li.append(text, no, yes);
+    ul.appendChild(li);
+  }
+}
+
+function handleSuggestion(sug, accept) {
+  const s = state.suggest;
+  if (!s.today || s.today.date !== currentDay) s.today = { date: currentDay, handled: [] };
+  s.today.handled.push(sug.key);
+  if (accept) {
+    addItem(sug.text, { suggestFrom: sug.source });
+    showToast('Added to today');
+  } else {
+    s.dismissed[sug.key] = (s.dismissed[sug.key] || 0) + 1;
+    save();
+    render();
+  }
+}
+
+// ---------- First-time questions (hobbies & goals) ----------
+
+let ob = null; // the answers while you're filling them in
+
+function openOnboarding() {
+  const p = state.profile || { hobbies: [], goals: [] };
+  ob = {
+    step: 0,
+    hobbies: [...(p.hobbies || [])],
+    goals: (p.goals || []).map((g) => ({ ...g })),
+    editing: !!state.profile && !state.profile.skipped,
+  };
+  $('onboard').hidden = false;
+  renderOnboarding();
+}
+
+function closeOnboarding() {
+  $('onboard').hidden = true;
+  ob = null;
+  if (document.activeElement) document.activeElement.blur();
+}
+
+function finishOnboarding(skipped) {
+  if (skipped && !ob.editing) {
+    state.profile = { hobbies: [], goals: [], skipped: true };
+  } else if (!skipped) {
+    state.profile = { hobbies: ob.hobbies, goals: ob.goals, answeredAt: Date.now() };
+  }
+  save();
+  closeOnboarding();
+  render();
+  if (!skipped) {
+    showToast(previewSuggestions || suggestionsUnlocked(state)
+      ? 'Saved! Check your suggestions.'
+      : `Saved! Suggestions start after ${SUGGEST_AFTER_DAYS} days of use.`);
+  }
+}
+
+function chip(label, on, onClick) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'chip';
+  b.textContent = label;
+  b.setAttribute('aria-pressed', String(on));
+  b.addEventListener('click', onClick);
+  return b;
+}
+
+// A list of tap-to-pick chips plus a box to type your own.
+function chipPicker(presets, selected, toggle, placeholder) {
+  const wrap = document.createElement('div');
+  const chips = document.createElement('div');
+  chips.className = 'chips';
+  const lower = (t) => t.toLowerCase();
+  const all = [...presets];
+  for (const t of selected) if (!all.some((p) => lower(p) === lower(t))) all.push(t);
+  for (const t of all) {
+    const on = selected.some((x) => lower(x) === lower(t));
+    chips.appendChild(chip(t, on, () => { toggle(t); renderOnboarding(); }));
+  }
+
+  const form = document.createElement('form');
+  form.className = 'own-form';
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.maxLength = 60;
+  input.placeholder = placeholder;
+  input.enterKeyHint = 'done';
+  const add = document.createElement('button');
+  add.type = 'submit';
+  add.className = 'btn';
+  add.textContent = 'Add';
+  form.append(input, add);
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const t = input.value.trim();
+    if (!t) return;
+    if (!selected.some((x) => lower(x) === lower(t))) toggle(t);
+    renderOnboarding();
+  });
+  wrap.append(chips, form);
+  return wrap;
+}
+
+const FREQ_LABEL = { daily: 'Daily', few: 'Few times a week', weekly: 'Weekly' };
+
+function renderOnboarding() {
+  const body = $('ob-body');
+  body.replaceChildren();
+  $('ob-step').textContent = `Step ${ob.step + 1} of 3`;
+  $('ob-back').style.visibility = ob.step === 0 ? 'hidden' : 'visible';
+  $('ob-next').textContent = ob.step === 2 ? (ob.editing ? 'Save' : 'Finish') : 'Next';
+  $('ob-skip').textContent = ob.editing ? 'Cancel' : 'Skip';
+
+  if (ob.step === 0) {
+    $('ob-title').textContent = ob.editing ? 'Your hobbies' : 'What do you enjoy?';
+    $('ob-sub').textContent = 'Pick any hobbies, or type your own. These help the app suggest things you’ll like.';
+    body.appendChild(chipPicker(HOBBY_PRESETS, ob.hobbies, (t) => {
+      const i = ob.hobbies.findIndex((x) => x.toLowerCase() === t.toLowerCase());
+      if (i >= 0) ob.hobbies.splice(i, 1); else ob.hobbies.push(t);
+    }, 'Something else…'));
+  } else if (ob.step === 1) {
+    $('ob-title').textContent = ob.editing ? 'Your goals' : 'What do you want to accomplish?';
+    $('ob-sub').textContent = 'Pick goals, or type your own, like “Run a half marathon” or “Learn Spanish”.';
+    const texts = ob.goals.map((g) => g.text);
+    body.appendChild(chipPicker(GOAL_PRESETS, texts, (t) => {
+      const i = ob.goals.findIndex((g) => g.text.toLowerCase() === t.toLowerCase());
+      if (i >= 0) ob.goals.splice(i, 1); else ob.goals.push({ id: uid(), text: t, freq: 'few' });
+    }, 'Another goal…'));
+  } else {
+    $('ob-title').textContent = 'How often?';
+    $('ob-sub').textContent = 'How often do you want to work on each goal? This decides how often it shows up in suggestions.';
+    if (!ob.goals.length) {
+      const p = document.createElement('p');
+      p.className = 'muted';
+      p.textContent = 'No goals picked. That’s fine. You can add some later in Settings.';
+      body.appendChild(p);
+    }
+    for (const g of ob.goals) {
+      const row = document.createElement('div');
+      row.className = 'freq-row';
+      const name = document.createElement('div');
+      name.className = 'freq-name';
+      name.textContent = g.text;
+      const seg = document.createElement('div');
+      seg.className = 'seg';
+      for (const f of ['daily', 'few', 'weekly']) {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.textContent = FREQ_LABEL[f];
+        b.setAttribute('aria-checked', String(g.freq === f));
+        b.addEventListener('click', () => { g.freq = f; renderOnboarding(); });
+        seg.appendChild(b);
+      }
+      row.append(name, seg);
+      body.appendChild(row);
+    }
+  }
+  body.scrollTop = 0;
+}
+
+function renderProfileSummary() {
+  const p = state.profile;
+  const el = $('profile-summary');
+  if (!p || (!p.hobbies.length && !p.goals.length)) {
+    el.textContent = 'Not set yet.';
+    el.className = 'small muted';
+  } else {
+    el.className = 'small';
+    const parts = [];
+    if (p.hobbies.length) parts.push('Hobbies: ' + p.hobbies.join(', '));
+    if (p.goals.length) parts.push('Goals: ' + p.goals.map((g) => `${g.text} (${FREQ_LABEL[g.freq].toLowerCase()})`).join(', '));
+    el.textContent = parts.join(' · ');
+  }
+  const days = daysOfUse(state);
+  $('suggest-status').textContent = days >= SUGGEST_AFTER_DAYS
+    ? 'Suggestions are on. They show under the green bar when there’s something to suggest.'
+    : `Suggestions start after ${SUGGEST_AFTER_DAYS} days of use. You’re at ${days} of ${SUGGEST_AFTER_DAYS}.`;
 }
 
 // ---------- Settings panel ----------
@@ -605,7 +842,7 @@ function importBackup(file) {
       const data = JSON.parse(reader.result);
       if (!isValidState(data)) throw new Error('bad file');
       if (!confirm('Replace everything in the app with this backup?')) return;
-      state = data;
+      state = upgrade(data);
       save();
       runDailyCheck();
       renderRepeatList();
@@ -708,7 +945,26 @@ $('carry-drop-all').addEventListener('click', () => {
 
 $('dismiss-tip').addEventListener('click', () => { state.meta.tipDismissed = true; save(); render(); });
 
-$('open-settings').addEventListener('click', () => { renderRepeatList(); openSheet('settings-sheet'); });
+$('open-settings').addEventListener('click', () => { renderRepeatList(); renderProfileSummary(); openSheet('settings-sheet'); });
+$('edit-profile').addEventListener('click', () => { closeSheets(); openOnboarding(); });
+$('preview-suggest').addEventListener('click', () => {
+  closeSheets();
+  if (!state.profile || (!state.profile.hobbies.length && !state.profile.goals.length)) {
+    showToast('Add some hobbies or goals first so there’s something to suggest.');
+    openOnboarding();
+    previewSuggestions = true;
+    return;
+  }
+  previewSuggestions = true;
+  render();
+  showToast(getSuggestions(state, currentDay).length ? 'Here’s a preview of your suggestions' : 'Nothing to suggest right now. Try adding a goal.');
+});
+
+$('ob-next').addEventListener('click', () => {
+  if (ob.step < 2) { ob.step++; renderOnboarding(); } else finishOnboarding(false);
+});
+$('ob-back').addEventListener('click', () => { if (ob.step > 0) { ob.step--; renderOnboarding(); } });
+$('ob-skip').addEventListener('click', () => finishOnboarding(true));
 $('settings-close').addEventListener('click', closeSheets);
 $('export-btn').addEventListener('click', exportBackup);
 $('import-btn').addEventListener('click', () => $('import-file').click());
@@ -724,6 +980,7 @@ $('erase-btn').addEventListener('click', () => {
   save();
   closeSheets();
   runDailyCheck();
+  openOnboarding();
 });
 $('version').textContent = APP_VERSION;
 
@@ -734,6 +991,7 @@ document.addEventListener('visibilitychange', () => {
 setInterval(() => { if (dateKey() !== currentDay) runDailyCheck(); }, 60 * 1000);
 
 runDailyCheck();
+if (!state.profile) openOnboarding();
 
 // ---------- Splash screen ----------
 // Shown for about a second when the app opens, then it fades away.

@@ -276,3 +276,76 @@ main { padding: 0 16px calc(env(safe-area-inset-bottom) + 40px); max-width: 640p
 }
 .toast .link-btn { color: #8fd8c2; }
 @media (prefers-color-scheme: dark) { .toast { background: #3a3a3d; } }
+
+/* ---------- Guessed priority colors ---------- */
+/* A guessed color is a lighter stripe until you confirm it */
+.item.guess::before { opacity: 0.4; }
+.item.guess .check { border-color: var(--none); }
+
+/* ---------- Suggestions card ---------- */
+.suggest { border-left: 4px solid var(--accent); }
+.suggest-list { list-style: none; margin: 6px 0 0; padding: 0; }
+.suggest-list li {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 0; border-top: 1px solid var(--border);
+}
+.suggest-list li:first-child { border-top: 0; }
+.sug-text { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.sug-why { display: block; font-size: 13px; color: var(--muted); margin-top: 1px; }
+.sug-btn {
+  width: 38px; height: 38px; flex: none; border-radius: 50%;
+  border: 1px solid var(--border); background: var(--surface-2);
+  font-size: 17px; font-weight: 700; display: grid; place-items: center;
+  transition: transform 0.12s ease;
+}
+.sug-btn:active { transform: scale(0.85); }
+.sug-btn.yes { background: var(--accent); color: var(--accent-text); border-color: transparent; }
+.sug-btn.no { color: var(--muted); }
+
+/* ---------- First-time questions ---------- */
+.onboard {
+  position: fixed; inset: 0; z-index: 60;
+  background: var(--bg);
+  display: flex; flex-direction: column;
+}
+.onboard-head {
+  background: var(--header-bg); color: #fff;
+  padding: calc(env(safe-area-inset-top) + 14px) 20px 20px;
+  border-radius: 0 0 22px 22px;
+}
+.onboard-top { display: flex; justify-content: space-between; align-items: center; }
+.onboard-step { font-size: 14px; color: rgba(255, 255, 255, 0.8); }
+.onboard-skip {
+  background: rgba(255, 255, 255, 0.18); color: #fff; border: 0;
+  border-radius: 999px; padding: 5px 14px; font-size: 15px; font-weight: 600;
+}
+.onboard-head h2 { font-size: 26px; line-height: 1.2; margin: 12px 0 6px; letter-spacing: -0.02em; }
+.onboard-head p { margin: 0; color: rgba(255, 255, 255, 0.85); font-size: 15px; }
+.onboard-body { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 20px; }
+.onboard-foot {
+  display: flex; justify-content: space-between; gap: 10px;
+  padding: 12px 20px calc(env(safe-area-inset-bottom) + 12px);
+  border-top: 1px solid var(--border); background: var(--bg);
+}
+.onboard-foot .primary { flex: 1; max-width: 220px; }
+
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip {
+  border: 1.5px solid var(--border); background: var(--surface);
+  border-radius: 999px; padding: 8px 14px; font-size: 16px;
+  transition: transform 0.1s ease;
+}
+.chip:active { transform: scale(0.95); }
+.chip[aria-pressed="true"] { background: var(--accent); color: var(--accent-text); border-color: var(--accent); font-weight: 600; }
+.chip[aria-pressed="true"]::before { content: "✓ "; }
+
+.own-form { display: flex; gap: 8px; margin-top: 18px; }
+.own-form input {
+  flex: 1; min-width: 0; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; padding: 11px 12px; outline: none;
+}
+.own-form input:focus { border-color: var(--accent); }
+
+.freq-row { margin-bottom: 18px; }
+.freq-name { font-weight: 600; margin-bottom: 6px; }
+.freq-row .seg button { font-size: 14px; }

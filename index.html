@@ -100,6 +100,11 @@
       </div>
     </section>
 
+    <section id="suggest" class="card suggest" hidden>
+      <strong>Suggested for today</strong>
+      <ul id="suggest-list" class="suggest-list"></ul>
+    </section>
+
     <ul id="list" class="list" aria-label="Today's to-dos"></ul>
 
     <div id="empty" class="empty" hidden>
@@ -164,6 +169,14 @@
       <input id="import-file" type="file" accept="application/json,.json" hidden>
     </div>
 
+    <h3>Hobbies &amp; goals</h3>
+    <p id="profile-summary" class="small"></p>
+    <button class="btn" id="edit-profile">Edit hobbies &amp; goals</button>
+
+    <h3>Suggestions</h3>
+    <p id="suggest-status" class="muted small"></p>
+    <button class="btn" id="preview-suggest">Preview suggestions now</button>
+
     <h3>Repeating to-dos</h3>
     <ul id="repeat-list" class="repeat-list"></ul>
 
@@ -178,6 +191,24 @@
     <button id="toast-action" class="link-btn" hidden></button>
   </div>
 
+  <!-- First-time questions: hobbies and goals -->
+  <section id="onboard" class="onboard" role="dialog" aria-modal="true" aria-labelledby="ob-title" hidden>
+    <div class="onboard-head">
+      <div class="onboard-top">
+        <span id="ob-step" class="onboard-step"></span>
+        <button class="onboard-skip" id="ob-skip">Skip</button>
+      </div>
+      <h2 id="ob-title"></h2>
+      <p id="ob-sub"></p>
+    </div>
+    <div class="onboard-body" id="ob-body"></div>
+    <div class="onboard-foot">
+      <button class="btn ghost" id="ob-back">Back</button>
+      <button class="btn primary" id="ob-next">Next</button>
+    </div>
+  </section>
+
+  <script src="suggest.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

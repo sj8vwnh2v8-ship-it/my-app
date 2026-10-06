@@ -13,9 +13,15 @@ Everything is saved on your phone; there are no accounts.
 - 🔥 streak of days you finished everything
 - Backup and restore (Settings, the ••• button)
 
+## Stage 2: the smart parts
+- First-time questions about your hobbies and goals (edit them in Settings)
+- Daily suggestions after 7 days of use, from your habits and your goals; tap ✓ to add or ✕ to dismiss
+- Guessed priority colors (lighter stripe, "Guessed: High") learned from how you've colored and handled to-dos
+
 ## Files
 - `index.html` — the page layout
 - `styles.css` — colors and look
 - `app.js` — how everything works
+- `suggest.js` — suggestions and guessed colors
 - `sw.js` — lets the app open without internet
 - `manifest.webmanifest` + `icons/` — makes it installable on the home screen
