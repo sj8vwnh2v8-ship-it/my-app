@@ -18,6 +18,13 @@ Everything is saved on your phone; there are no accounts.
 - Daily suggestions after 7 days of use, from your habits and your goals; tap ✓ to add or ✕ to dismiss
 - Guessed priority colors (lighter stripe, "Guessed: High") learned from how you've colored and handled to-dos
 
+## Stage 3: reminders
+- Set a "Remind me at" time on any to-do (repeating ones too)
+- Turn reminders on in Settings (needs the app opened from the home-screen icon, iOS 16.4+)
+- The reminder service lives in `worker/` and runs on Cloudflare's free plan.
+  It only receives each reminder's text and time. GitHub Actions installs it
+  (`.github/workflows/deploy-reminders.yml`) using the `CLOUDFLARE_API_TOKEN` secret.
+
 ## Files
 - `index.html` — the page layout
 - `styles.css` — colors and look
@@ -25,3 +32,4 @@ Everything is saved on your phone; there are no accounts.
 - `suggest.js` — suggestions and guessed colors
 - `sw.js` — lets the app open without internet
 - `manifest.webmanifest` + `icons/` — makes it installable on the home screen
+- `worker/` — the reminder service (Cloudflare)

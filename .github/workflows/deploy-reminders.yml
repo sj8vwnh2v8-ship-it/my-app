@@ -1,0 +1,52 @@
+# Installs the reminder service (the worker/ folder) on Cloudflare
+# whenever it changes. Needs the CLOUDFLARE_API_TOKEN repository secret.
+name: Deploy reminder service
+
+on:
+  push:
+    branches: [claude/todo-app, main]
+    paths: ['worker/**', '.github/workflows/deploy-reminders.yml']
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check for Cloudflare key
+        id: check
+        env:
+          TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          if [ -z "$TOKEN" ]; then
+            echo "The CLOUDFLARE_API_TOKEN secret hasn't been added yet, so there's nothing to deploy."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-node@v4
+        if: steps.check.outputs.ready == 'true'
+        with:
+          node-version: 22
+
+      - name: Install
+        if: steps.check.outputs.ready == 'true'
+        working-directory: worker
+        run: npm ci
+
+      - name: Test
+        if: steps.check.outputs.ready == 'true'
+        working-directory: worker
+        run: npm test
+
+      - name: Deploy to Cloudflare
+        if: steps.check.outputs.ready == 'true'
+        working-directory: worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ -n "$ACCOUNT_ID" ]; then export CLOUDFLARE_ACCOUNT_ID="$ACCOUNT_ID"; fi
+          npx wrangler deploy

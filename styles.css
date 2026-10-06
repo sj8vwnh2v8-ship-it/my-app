@@ -373,3 +373,17 @@ main { padding: 0 16px calc(env(safe-area-inset-bottom) + 40px); max-width: 640p
   .streak { padding: 4px 8px; font-size: 14px; margin-right: 0; }
   .icon-btn { padding: 6px; }
 }
+
+/* ---------- Reminders ---------- */
+.time-row { display: flex; align-items: center; gap: 12px; }
+.time-row input {
+  flex: 1; min-width: 0; min-height: 44px;
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px;
+  padding: 9px 12px; color: var(--text); -webkit-appearance: none; appearance: none;
+}
+.time-row input:not(:valid), .time-row input[value=""] { color: var(--muted); }
+.remind-note {
+  display: flex; justify-content: space-between; align-items: center; gap: 10px;
+  margin-top: 8px; padding: 8px 12px; border-radius: 10px;
+  background: var(--surface-2); font-size: 14px; color: var(--muted);
+}

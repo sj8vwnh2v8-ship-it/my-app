@@ -5,7 +5,9 @@
 //  All data is kept in this browser's local storage.
 // ============================================================
 
-const APP_VERSION = '1.1.2';
+const APP_VERSION = '1.2.0';
+// The reminder service's web address (filled in once it's installed on Cloudflare).
+const REMINDER_API = '';
 const STORE_KEY = 'today-app-data';
 const PRIORITY_RANK = { high: 0, med: 1, low: 2 };
 const PRIORITY_LABEL = { high: 'High', med: 'Medium', low: 'Low' };
@@ -96,6 +98,7 @@ function save() {
   } catch (e) {
     showToast("Couldn't save. Your phone may be out of storage.");
   }
+  scheduleReminderSync();
 }
 
 // Ask the phone to keep our data even when storage runs low.
@@ -120,7 +123,7 @@ function addRepeatItemsFor(day) {
     state.items.push({
       id: uid(), text: rule.text, date: day, done: false, doneAt: null,
       priority: rule.priority || null, prioritySource: rule.priority ? 'user' : null,
-      repeatId: rule.id, createdAt: Date.now(),
+      time: rule.time || null, repeatId: rule.id, createdAt: Date.now(),
     });
     changed = true;
   }
@@ -277,7 +280,7 @@ function carryOver(id, bring) {
     state.items.push({
       id: uid(), text: item.text, date: currentDay, done: false, doneAt: null,
       priority: item.priority || null, prioritySource: item.prioritySource || null,
-      repeatId: null, createdAt: Date.now(), carriedFrom: item.id, suggestFrom: item.suggestFrom,
+      time: item.time || null, repeatId: null, createdAt: Date.now(), carriedFrom: item.id, suggestFrom: item.suggestFrom,
     });
   } else {
     item.carry = 'dropped';
@@ -393,6 +396,7 @@ function renderList({ animate = false } = {}) {
     body.appendChild(text);
 
     const meta = [];
+    if (item.time) meta.push('⏰ ' + formatTime(item.time));
     if (item.priority) meta.push((guessed ? 'Guessed: ' : '') + PRIORITY_LABEL[item.priority]);
     if (item.repeatId) {
       const rule = state.repeats.find((r) => r.id === item.repeatId);
@@ -522,6 +526,8 @@ function openEdit(id) {
     days: rule && rule.kind === 'weekly' ? [...rule.days] : [parseKey(currentDay).getDay()],
   };
   $('edit-text').value = item.text;
+  $('edit-time').value = item.time || '';
+  renderTimeField();
   setSeg('edit-priority', editing.priority);
   setSeg('edit-repeat', editing.repeatKind);
   renderDays();
@@ -540,6 +546,7 @@ function saveEdit() {
   item.priority = editing.priority || null;
   // Saving the panel counts as you choosing the color (even if it was guessed).
   item.prioritySource = item.priority ? 'user' : null;
+  item.time = $('edit-time').value || null;
 
   let rule = item.repeatId ? state.repeats.find((r) => r.id === item.repeatId) : null;
   if (editing.repeatKind) {
@@ -551,6 +558,7 @@ function saveEdit() {
     }
     rule.text = text;
     rule.priority = item.priority;
+    rule.time = item.time;
     rule.kind = editing.repeatKind;
     rule.days = editing.repeatKind === 'weekly' ? [...editing.days].sort((a, b) => a - b) : [];
   } else if (rule) {
@@ -793,6 +801,223 @@ function renderProfileSummary() {
     : `Tap 💡 in the green bar for ideas anytime. After ${SUGGEST_AFTER_DAYS} days of use (you’re at ${days}), they’ll also learn from your habits and open by themselves.`;
 }
 
+// ---------- Reminders ----------
+//
+// Your phone gets a "push address" from Apple. The app sends the reminder
+// service a list of upcoming reminders (text + time) for that address, and
+// the service sends each notification when it's due.
+
+let swRegistration = null; // the offline helper, which also shows notifications
+let lastSyncedJson = null;
+let syncTimer = null;
+
+function formatTime(hhmm) {
+  const [h, m] = hhmm.split(':').map(Number);
+  const d = new Date();
+  d.setHours(h, m, 0, 0);
+  return d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+}
+
+function atTime(day, hhmm) {
+  const d = parseKey(day);
+  const [h, m] = hhmm.split(':').map(Number);
+  d.setHours(h, m, 0, 0);
+  return d.getTime();
+}
+
+// Every reminder coming up in the next 2 weeks.
+function upcomingReminders() {
+  const now = Date.now();
+  const out = [];
+  for (const i of state.items) {
+    if (i.deleted || i.done || !i.time || i.date < currentDay) continue;
+    const at = atTime(i.date, i.time);
+    if (at > now) out.push({ id: 'i:' + i.id, at, title: i.text, body: `Reminder · ${formatTime(i.time)}` });
+  }
+  // Repeating to-dos that haven't appeared on the list yet.
+  for (const rule of state.repeats) {
+    if (!rule.active || !rule.time) continue;
+    for (let n = 0; n < 14; n++) {
+      const day = addDays(currentDay, n);
+      if (!repeatMatches(rule, day) || state.items.some((i) => i.repeatId === rule.id && i.date === day)) continue;
+      const at = atTime(day, rule.time);
+      if (at > now) out.push({ id: `r:${rule.id}:${day}`, at, title: rule.text, body: `Reminder · ${formatTime(rule.time)}` });
+    }
+  }
+  return out.sort((a, b) => a.at - b.at).slice(0, 250);
+}
+
+function remindersSupported() {
+  return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+}
+
+async function currentSubscription() {
+  if (!swRegistration || !remindersSupported()) return null;
+  try { return await swRegistration.pushManager.getSubscription(); } catch (e) { return null; }
+}
+
+function scheduleReminderSync() {
+  if (!state.meta || !state.meta.remindersOn || !REMINDER_API) return;
+  clearTimeout(syncTimer);
+  syncTimer = setTimeout(syncReminders, 1200);
+}
+
+async function syncReminders() {
+  const sub = await currentSubscription();
+  if (!sub) return;
+  const reminders = upcomingReminders();
+  const json = JSON.stringify(reminders);
+  if (json === lastSyncedJson) return;
+  try {
+    const res = await fetch(REMINDER_API + '/reminders', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ subscription: sub.toJSON(), reminders }),
+    });
+    if (res.ok) lastSyncedJson = json;
+  } catch (e) {
+    // Offline. We'll try again next time something changes or the app opens.
+  }
+}
+
+function urlB64ToBytes(str) {
+  const s = str.replace(/-/g, '+').replace(/_/g, '/');
+  const bin = atob(s + '='.repeat((4 - (s.length % 4)) % 4));
+  return Uint8Array.from(bin, (c) => c.charCodeAt(0));
+}
+
+// Fetch the service's public key ahead of time, so turning reminders on can
+// happen right inside your tap (iPhones require that).
+async function prefetchReminderKey() {
+  if (!REMINDER_API || state.meta.vapidKey) return;
+  try {
+    const res = await fetch(REMINDER_API + '/vapid');
+    const data = await res.json();
+    if (data.publicKey) { state.meta.vapidKey = data.publicKey; save(); }
+  } catch (e) { /* offline; try again later */ }
+}
+
+function enableReminders() {
+  if (isIOS() && !isInstalled()) {
+    showToast('Open the app from your home-screen icon to turn on reminders.');
+    return;
+  }
+  if (!remindersSupported() || !swRegistration) {
+    showToast('This phone can’t show reminders from web apps. iPhones need iOS 16.4 or newer.');
+    return;
+  }
+  if (!state.meta.vapidKey) {
+    showToast('Couldn’t reach the reminder service. Check your internet and try again.');
+    prefetchReminderKey();
+    return;
+  }
+  // This asks for permission to show notifications.
+  swRegistration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlB64ToBytes(state.meta.vapidKey) })
+    .then(() => {
+      state.meta.remindersOn = true;
+      lastSyncedJson = null;
+      save();
+      syncReminders();
+      renderReminderSettings();
+      renderTimeField();
+      showToast('Reminders are on!');
+    })
+    .catch(() => {
+      renderReminderSettings();
+      if (Notification.permission === 'denied') {
+        showToast('Notifications are blocked. Turn them on in iPhone Settings → Notifications → Today.');
+      } else {
+        showToast('Couldn’t turn on reminders. Please try again.');
+      }
+    });
+}
+
+async function disableReminders() {
+  const sub = await currentSubscription();
+  if (sub) {
+    try {
+      await fetch(REMINDER_API + '/reminders', {
+        method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subscription: sub.toJSON() }),
+      });
+    } catch (e) { /* offline; the service cleans up on its own later */ }
+    try { await sub.unsubscribe(); } catch (e) {}
+  }
+  state.meta.remindersOn = false;
+  save();
+  renderReminderSettings();
+  showToast('Reminders are off');
+}
+
+async function sendTestNotification() {
+  const sub = await currentSubscription();
+  if (!sub) { renderReminderSettings(); return; }
+  try {
+    const res = await fetch(REMINDER_API + '/test', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ subscription: sub.toJSON() }),
+    });
+    const data = await res.json();
+    showToast(data.ok ? 'Sent! It should appear in a few seconds.' : 'The test didn’t go through. Try turning reminders off and on.');
+  } catch (e) {
+    showToast('Couldn’t reach the reminder service. Check your internet.');
+  }
+}
+
+// If you turned notifications off in iPhone Settings, notice it.
+async function checkReminderStatus() {
+  if (!state.meta.remindersOn) return;
+  const sub = await currentSubscription();
+  if (!sub && swRegistration) {
+    state.meta.remindersOn = false;
+    save();
+  } else {
+    scheduleReminderSync();
+  }
+}
+
+function reminderState() {
+  if (!REMINDER_API) return 'not-setup';
+  if (isIOS() && !isInstalled()) return 'not-installed';
+  if (!remindersSupported()) return 'unsupported';
+  if (Notification.permission === 'denied') return 'blocked';
+  return state.meta.remindersOn ? 'on' : 'off';
+}
+
+function renderReminderSettings() {
+  const st = reminderState();
+  const text = {
+    'not-setup': 'Reminders aren’t set up yet. They’re coming soon.',
+    'not-installed': 'To get reminders, open this app from its home-screen icon (not from Safari).',
+    unsupported: 'This phone can’t show reminders from web apps. iPhones need iOS 16.4 or newer.',
+    blocked: 'Notifications are blocked for this app. Turn them on in iPhone Settings → Notifications → Today.',
+    on: 'Reminders are on for this phone. Set a time on any to-do to get a notification.',
+    off: 'Get a notification at the time you set on a to-do.',
+  }[st];
+  $('remind-status').textContent = text;
+  $('remind-on').hidden = st !== 'off';
+  $('remind-test').hidden = st !== 'on';
+  $('remind-off').hidden = st !== 'on';
+}
+
+function renderTimeField() {
+  const hasTime = !!$('edit-time').value;
+  $('edit-time-clear').hidden = !hasTime;
+  const st = reminderState();
+  $('remind-note').hidden = !(hasTime && st !== 'on' && st !== 'not-setup');
+  if (st === 'off') {
+    $('remind-note').firstElementChild.textContent = 'Reminders are off on this phone.';
+    $('remind-note-on').hidden = false;
+  } else {
+    $('remind-note').firstElementChild.textContent = {
+      'not-installed': 'Open the app from your home screen to get reminders.',
+      unsupported: 'This phone can’t show reminders.',
+      blocked: 'Notifications are blocked in iPhone Settings.',
+    }[st] || '';
+    $('remind-note-on').hidden = true;
+  }
+}
+
 // ---------- Settings panel ----------
 
 function renderRepeatList() {
@@ -964,7 +1189,14 @@ $('carry-drop-all').addEventListener('click', () => {
 
 $('dismiss-tip').addEventListener('click', () => { state.meta.tipDismissed = true; save(); render(); });
 
-$('open-settings').addEventListener('click', () => { renderRepeatList(); renderProfileSummary(); openSheet('settings-sheet'); });
+$('open-settings').addEventListener('click', () => { renderRepeatList(); renderProfileSummary(); renderReminderSettings(); openSheet('settings-sheet'); });
+$('remind-on').addEventListener('click', enableReminders);
+$('remind-note-on').addEventListener('click', enableReminders);
+$('remind-off').addEventListener('click', disableReminders);
+$('remind-test').addEventListener('click', sendTestNotification);
+$('edit-time').addEventListener('input', renderTimeField);
+$('edit-time').addEventListener('change', renderTimeField);
+$('edit-time-clear').addEventListener('click', () => { $('edit-time').value = ''; renderTimeField(); });
 $('edit-profile').addEventListener('click', () => { closeSheets(); openOnboarding(); });
 $('open-suggest').addEventListener('click', () => {
   if (suggestCardWanted() && !$('suggest').hidden) { setSuggestOpen(false); return; }
@@ -1005,7 +1237,7 @@ $('version').textContent = APP_VERSION;
 
 // Re-check when you come back to the app (it may be a new day).
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible') runDailyCheck();
+  if (document.visibilityState === 'visible') { runDailyCheck(); checkReminderStatus(); }
 });
 setInterval(() => { if (dateKey() !== currentDay) runDailyCheck(); }, 60 * 1000);
 
@@ -1038,5 +1270,10 @@ if ('serviceWorker' in navigator) {
   });
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).catch(() => {});
+    navigator.serviceWorker.ready.then((reg) => {
+      swRegistration = reg;
+      prefetchReminderKey();
+      checkReminderStatus();
+    });
   });
 }

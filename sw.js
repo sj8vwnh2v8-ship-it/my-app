@@ -1,7 +1,7 @@
 // Keeps a copy of the app on the phone so it opens even without internet.
 // It always tries the internet first (so you get updates), then falls back
 // to the saved copy if you're offline or the connection is slow.
-const CACHE = 'today-v8';
+const CACHE = 'today-v9';
 const FILES = [
   './',
   './index.html',
@@ -46,5 +46,28 @@ self.addEventListener('fetch', (event) => {
     const cached = await cache.match(req, { ignoreSearch: true });
     if (cached) return cached;
     return fromNetwork;
+  })());
+});
+
+// ---------- Reminders ----------
+// The reminder service sends a message; show it as a notification.
+self.addEventListener('push', (event) => {
+  let data = {};
+  try { data = event.data ? event.data.json() : {}; } catch (e) { /* not JSON */ }
+  event.waitUntil(self.registration.showNotification(data.title || 'Today', {
+    body: data.body || '',
+    tag: data.tag,
+    icon: './icons/icon-192.png',
+    badge: './icons/icon-192.png',
+  }));
+});
+
+// Tapping a notification opens the app.
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  event.waitUntil((async () => {
+    const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    for (const w of windows) if ('focus' in w) return w.focus();
+    return self.clients.openWindow('./');
   })());
 });
