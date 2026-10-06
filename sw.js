@@ -1,7 +1,7 @@
 // Keeps a copy of the app on the phone so it opens even without internet.
 // It always tries the internet first (so you get updates), then falls back
 // to the saved copy if you're offline or the connection is slow.
-const CACHE = 'today-v2';
+const CACHE = 'today-v3';
 const FILES = [
   './',
   './index.html',
@@ -31,7 +31,9 @@ self.addEventListener('fetch', (event) => {
 
   event.respondWith((async () => {
     const cache = await caches.open(CACHE);
-    const fromNetwork = fetch(req).then((res) => {
+    // 'no-cache' makes the phone ask GitHub whether there's a newer copy
+    // instead of quietly reusing one it downloaded a few minutes ago.
+    const fromNetwork = fetch(req, { cache: 'no-cache' }).then((res) => {
       if (res.ok) cache.put(req, res.clone());
       return res;
     });
