@@ -5,7 +5,7 @@
 //  All data is kept in this browser's local storage.
 // ============================================================
 
-const APP_VERSION = '1.0.3';
+const APP_VERSION = '1.0.4';
 const STORE_KEY = 'today-app-data';
 const PRIORITY_RANK = { high: 0, med: 1, low: 2 };
 const PRIORITY_LABEL = { high: 'High', med: 'Medium', low: 'Low' };
