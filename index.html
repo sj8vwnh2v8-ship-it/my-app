@@ -90,6 +90,7 @@
       <div class="top-actions">
         <button id="streak" class="streak" title="Your progress">
           <span aria-hidden="true">🔥</span><span id="streak-count">0</span>
+          <span id="freeze-badge" class="freeze-badge" aria-hidden="true" hidden></span>
         </button>
         <button id="open-suggest" class="icon-btn bulb-btn" aria-label="Suggestions" aria-pressed="false">
           <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.6 10.8c.6.5 1 1.2 1.1 2V16h5v-.2c.1-.8.5-1.5 1.1-2A6 6 0 0 0 12 3z"/></svg>
@@ -145,6 +146,8 @@
       </div>
       <ul id="suggest-list" class="suggest-list"></ul>
     </section>
+
+    <div id="rest-box" class="card rest-box" hidden></div>
 
     <ul id="list" class="list" aria-label="Today's to-dos"></ul>
 
@@ -270,8 +273,12 @@
       <span><i class="sw complete"></i>Finished everything</span>
       <span><i class="sw partial"></i>Partly done</span>
       <span><i class="sw missed"></i>Missed</span>
+      <span><i class="sw frozen"></i>Saved by a freeze</span>
+      <span><i class="sw rest"></i>Rest day</span>
     </div>
-    <p class="muted small">A day counts toward your streak when you plan at least one to-do and finish all of them. Days you skip or leave empty break it.</p>
+    <p class="muted small">A day counts toward your streak when you plan at least one to-do and finish all of them. Days you skip or leave empty break it, unless a freeze saves you.</p>
+    <p class="small" id="freeze-line"></p>
+    <p class="muted small">😴 Need a day off? Switch to <b>Tomorrow</b> and tap <b>Rest day</b> (1 per week).</p>
   </section>
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden>
@@ -379,6 +386,8 @@
           <ul>
             <li>Finish <b>everything</b> you planned and your 🔥 streak grows by one, with a little confetti</li>
             <li>A day you skip or leave empty breaks the streak, so plan at least one thing each day</li>
+            <li>Every 7 days in a row earns a <b>❄️ freeze</b> that saves your streak if you miss a day</li>
+            <li>Need a break? Make tomorrow a <b>😴 rest day</b> (1 per week)</li>
             <li><b>Tap the 🔥</b> to see your calendar, best streak and stats</li>
           </ul>
         </div>

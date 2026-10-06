@@ -5,7 +5,7 @@
 //  All data is kept in this browser's local storage.
 // ============================================================
 
-const APP_VERSION = '1.7.0';
+const APP_VERSION = '1.8.0';
 // The reminder service's web address. Reminders are switched off (and hidden
 // in the app) while this is empty. To turn them on, install the service in
 // worker/ on Cloudflare and put its address here.
@@ -193,24 +193,72 @@ function dayStatus(day, byDay) {
 // Streak = days in a row where you planned something and finished it all.
 // Every day counts: a skipped or empty day breaks it.
 // Today only counts once it's complete; an unfinished today doesn't break it yet.
-function computeStreak(byDay = dayStats()) {
-  let streak = dayStatus(currentDay, byDay) === 'complete' ? 1 : 0;
+//
+// Streak savers:
+//  😴 Rest days, planned ahead (1 per week), don't break or add to it.
+//  ❄️ Freezes: every 7 finished days in a row earns one (hold up to 2).
+//     If you miss a day while on a streak, a freeze is used automatically.
+const FREEZE_EVERY = 7;
+const FREEZE_MAX = 2;
+const MAX_REST_PER_WEEK = 1;
+
+function isRestDay(day) {
+  return (state.restDays || []).includes(day);
+}
+
+// Replays your whole history day by day, so freezes are always worked
+// out the same way. Returns the streak, best streak, freezes saved,
+// and which days were saved by a freeze.
+function streakInfo(byDay = dayStats()) {
   const first = state.meta.firstUseDate || currentDay;
-  for (let day = addDays(currentDay, -1); day >= first; day = addDays(day, -1)) {
-    if (dayStatus(day, byDay) !== 'complete') break;
-    streak++;
+  let run = 0, best = 0, bank = 0, sinceEarn = 0, earnedToday = false;
+  const frozen = new Set();
+  for (let day = first; day < currentDay; day = addDays(day, 1)) {
+    if (isRestDay(day)) continue;
+    if (dayStatus(day, byDay) === 'complete') {
+      run++;
+      best = Math.max(best, run);
+      if (++sinceEarn >= FREEZE_EVERY) { bank = Math.min(FREEZE_MAX, bank + 1); sinceEarn = 0; }
+    } else if (run > 0 && bank > 0) {
+      bank--;
+      frozen.add(day);
+    } else {
+      run = 0;
+      sinceEarn = 0;
+    }
   }
-  return streak;
+  // Today only adds once it's complete; an unfinished today doesn't break anything yet.
+  if (!isRestDay(currentDay) && dayStatus(currentDay, byDay) === 'complete') {
+    run++;
+    best = Math.max(best, run);
+    if (sinceEarn + 1 >= FREEZE_EVERY && bank < FREEZE_MAX) { bank++; earnedToday = true; }
+  }
+  return { streak: run, best, freezes: bank, frozen, earnedToday };
+}
+
+function computeStreak(byDay = dayStats()) {
+  return streakInfo(byDay).streak;
 }
 
 function bestStreak(byDay) {
-  let best = 0, run = 0;
-  const first = state.meta.firstUseDate || currentDay;
-  for (let day = first; day <= currentDay; day = addDays(day, 1)) {
-    if (dayStatus(day, byDay) === 'complete') { run++; best = Math.max(best, run); }
-    else if (day !== currentDay) run = 0;
-  }
-  return best;
+  return streakInfo(byDay).best;
+}
+
+function weekOf(day) {
+  return addDays(day, -parseKey(day).getDay()); // the Sunday that starts its week
+}
+
+function canRestOn(day) {
+  const week = weekOf(day);
+  return (state.restDays || []).filter((d) => d !== day && weekOf(d) === week).length < MAX_REST_PER_WEEK;
+}
+
+function setRestDay(day, on) {
+  const list = (state.restDays || []).filter((d) => d !== day);
+  if (on) list.push(day);
+  state.restDays = list.sort();
+  save();
+  render();
 }
 
 // ---------- Actions ----------
@@ -324,7 +372,43 @@ function render() {
   renderBackupNudge();
   renderCarryOver();
   renderSuggestions();
+  renderRestBox();
   renderList();
+}
+
+// The 😴 rest-day box: offered on Tomorrow, shown as a banner on a rest day.
+function renderRestBox() {
+  const box = $('rest-box');
+  const day = viewDay();
+  const rest = isRestDay(day);
+  box.replaceChildren();
+  box.hidden = !(viewTomorrow || rest);
+  if (box.hidden) return;
+  box.classList.toggle('on', rest);
+  const text = document.createElement('div');
+  text.className = 'rest-text';
+  const title = document.createElement('strong');
+  const sub = document.createElement('span');
+  const btn = document.createElement('button');
+  btn.className = 'btn';
+  if (rest) {
+    title.textContent = viewTomorrow ? '😴 Tomorrow is a rest day' : '😴 Rest day';
+    sub.textContent = 'It won’t break or add to your streak. Enjoy it.';
+    btn.textContent = 'Cancel';
+    btn.classList.add('ghost');
+    btn.addEventListener('click', () => setRestDay(day, false));
+  } else if (canRestOn(day)) {
+    title.textContent = '😴 Need a day off?';
+    sub.textContent = 'Make tomorrow a rest day and your streak won’t break. 1 per week.';
+    btn.textContent = 'Rest day';
+    btn.addEventListener('click', () => { setRestDay(day, true); showToast('Tomorrow is a rest day 😴'); });
+  } else {
+    title.textContent = '😴 Rest day used';
+    sub.textContent = 'You’ve already planned a rest day this week (Sunday to Saturday).';
+    btn.hidden = true;
+  }
+  text.append(title, sub);
+  box.append(text, btn);
 }
 
 function renderHeader() {
@@ -341,10 +425,14 @@ function renderHeader() {
   $('view-today').setAttribute('aria-selected', String(!viewTomorrow));
   $('view-tomorrow').setAttribute('aria-selected', String(viewTomorrow));
   $('add-input').placeholder = viewTomorrow ? 'Add something for tomorrow…' : 'Add something for today…';
-  const streak = computeStreak();
+  const info = streakInfo();
+  const streak = info.streak;
   $('streak-count').textContent = streak;
   $('streak').classList.toggle('zero', streak === 0);
-  $('streak').setAttribute('aria-label', `Streak: ${streak} day${streak === 1 ? '' : 's'}`);
+  $('freeze-badge').hidden = info.freezes === 0;
+  $('freeze-badge').textContent = '❄️' + info.freezes;
+  $('streak').setAttribute('aria-label', `Streak: ${streak} day${streak === 1 ? '' : 's'}` +
+    (info.freezes ? `, ${info.freezes} freeze${info.freezes === 1 ? '' : 's'} saved` : ''));
 }
 
 function isIOS() {
@@ -1078,8 +1166,11 @@ function renderBackupNudge() {
 // ---------- Celebration (when you finish the whole day) ----------
 
 function celebrate() {
-  const n = computeStreak();
-  setTimeout(() => showToast(n > 1 ? `All done! 🔥 ${n}-day streak` : 'All done for today! 🎉'), 300);
+  const info = streakInfo();
+  const n = info.streak;
+  let msg = n > 1 ? `All done! 🔥 ${n}-day streak` : 'All done for today! 🎉';
+  if (info.earnedToday) msg += ' · You earned a ❄️ freeze!';
+  setTimeout(() => showToast(msg), 300);
   const pill = $('streak');
   pill.classList.remove('bump');
   void pill.offsetWidth;
@@ -1116,8 +1207,10 @@ function celebrate() {
 
 function renderProgress() {
   const byDay = dayStats();
-  $('stat-streak').textContent = computeStreak(byDay);
-  $('stat-best').textContent = bestStreak(byDay);
+  const info = streakInfo(byDay);
+  $('stat-streak').textContent = info.streak;
+  $('stat-best').textContent = info.best;
+  $('freeze-line').textContent = `❄️ Freezes saved: ${info.freezes} of ${FREEZE_MAX}. You earn one for every ${FREEZE_EVERY} finished days in a row, and it's used automatically if you miss a day.`;
   $('stat-total').textContent = state.items.filter((i) => i.done && !i.deleted).length;
   let total = 0, done = 0;
   for (let k = 0; k < 7; k++) {
@@ -1140,12 +1233,15 @@ function renderProgress() {
     const cell = document.createElement('span');
     cell.textContent = parseKey(day).getDate();
     let cls;
-    if (day > currentDay) cls = 'future';
+    if (day > currentDay) cls = isRestDay(day) ? 'rest' : 'future';
     else if (day < first) cls = 'before';
+    else if (isRestDay(day)) cls = 'rest';
     else if (day === currentDay) cls = dayStatus(day, byDay) === 'complete' ? 'complete' : 'pending';
+    else if (info.frozen.has(day)) cls = 'frozen';
     else cls = dayStatus(day, byDay) === 'empty' ? 'missed' : dayStatus(day, byDay);
+    if (cls === 'rest' && day > currentDay) cls = 'rest future-rest';
     cell.className = cls + (day === currentDay ? ' today' : '');
-    const label = { complete: 'finished everything', partial: 'partly done', missed: 'missed', pending: 'in progress', future: '', before: '' }[cls];
+    const label = { complete: 'finished everything', partial: 'partly done', missed: 'missed', pending: 'in progress', frozen: 'saved by a freeze', rest: 'rest day', 'rest future-rest': 'rest day', future: '', before: '' }[cls];
     cell.setAttribute('aria-label', parseKey(day).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + (label ? `: ${label}` : ''));
     cal.appendChild(cell);
   }
@@ -1335,6 +1431,14 @@ function runDailyCheck() {
   }
   if (addRepeatItemsFor(currentDay)) added = true;
   if (viewTomorrow && addRepeatItemsFor(addDays(currentDay, 1))) added = true;
+  // Let you know if a freeze kept your streak alive since you last looked.
+  const frozenDays = [...streakInfo().frozen].sort();
+  const newest = frozenDays[frozenDays.length - 1];
+  if (newest && newest > (state.meta.freezeNotice || '')) {
+    state.meta.freezeNotice = newest;
+    added = true;
+    setTimeout(() => showToast(`❄️ A freeze saved your streak (${friendlyDate(newest)})`), 2600);
+  }
   if (added || state.meta.lastOpenDate !== currentDay) {
     state.meta.lastOpenDate = currentDay;
     save();
