@@ -5,7 +5,7 @@
 //  All data is kept in this browser's local storage.
 // ============================================================
 
-const APP_VERSION = '1.5.0';
+const APP_VERSION = '1.5.1';
 // The reminder service's web address. Reminders are switched off (and hidden
 // in the app) while this is empty. To turn them on, install the service in
 // worker/ on Cloudflare and put its address here.
@@ -1416,16 +1416,48 @@ setInterval(() => { if (dateKey() !== currentDay) runDailyCheck(); }, 60 * 1000)
 runDailyCheck();
 if (!state.profile) openOnboarding();
 
+// ---------- Press-down feel for every button ----------
+// Adds a "pressed" look the moment your finger lands, and keeps it long
+// enough to see even on a quick tap. Moving your finger (scrolling or
+// swiping) cancels it.
+(function pressFeel() {
+  const SELECTOR = 'button, .chip, label.btn';
+  const MIN_MS = 120;
+  let current = null, downAt = 0, startX = 0, startY = 0;
+  const release = () => {
+    if (!current) return;
+    const el = current;
+    current = null;
+    setTimeout(() => el.classList.remove('pressed'), Math.max(0, MIN_MS - (Date.now() - downAt)));
+  };
+  document.addEventListener('pointerdown', (e) => {
+    const el = e.target.closest(SELECTOR);
+    if (!el || el.disabled || el.classList.contains('check')) return;
+    current = el; downAt = Date.now(); startX = e.clientX; startY = e.clientY;
+    el.classList.add('pressed');
+  }, { passive: true });
+  document.addEventListener('pointermove', (e) => {
+    if (current && Math.hypot(e.clientX - startX, e.clientY - startY) > 10) {
+      current.classList.remove('pressed');
+      current = null;
+    }
+  }, { passive: true });
+  document.addEventListener('pointerup', release, { passive: true });
+  document.addEventListener('pointercancel', release, { passive: true });
+  // iPhones only show :active styles when a touch listener exists.
+  document.addEventListener('touchstart', () => {}, { passive: true });
+})();
+
 // ---------- Splash screen ----------
 // Shown for about a second when the app opens, then it fades away.
 (function hideSplash() {
   const splash = $('splash');
   if (!splash) return;
-  const SPLASH_MS = 1000;
+  const SPLASH_MS = 2000;
   setTimeout(() => {
     splash.classList.add('leaving');
     document.documentElement.classList.remove('booting');
-    setTimeout(() => splash.remove(), 400);
+    setTimeout(() => splash.remove(), 650);
   }, Math.max(0, SPLASH_MS - performance.now()));
 })();
 

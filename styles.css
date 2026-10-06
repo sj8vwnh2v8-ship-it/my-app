@@ -91,7 +91,6 @@ h1 { font-size: 28px; line-height: 1.15; margin: 0; letter-spacing: -0.02em; }
   background: none; border: 0; padding: 8px; border-radius: 999px;
   display: grid; place-items: center; fill: #fff;
 }
-.icon-btn:active { background: rgba(255, 255, 255, 0.18); }
 
 .add-form { display: flex; gap: 8px; margin-top: 14px; }
 .add-form input {
@@ -106,7 +105,6 @@ h1 { font-size: 28px; line-height: 1.15; margin: 0; letter-spacing: -0.02em; }
   background: rgba(255, 255, 255, 0.2); color: #fff;
   font-size: 26px; line-height: 1;
 }
-.add-btn:active { opacity: 0.8; }
 
 main { padding: 0 16px calc(env(safe-area-inset-bottom) + 40px); max-width: 640px; margin: 0 auto; }
 .top-row, .add-form { max-width: 608px; margin-left: auto; margin-right: auto; }
@@ -209,7 +207,6 @@ main { padding: 0 16px calc(env(safe-area-inset-bottom) + 40px); max-width: 640p
   border: 1px solid var(--border); background: var(--surface-2);
   border-radius: 12px; padding: 11px 16px; font-weight: 600; font-size: 16px;
 }
-.btn:active { opacity: 0.8; }
 .btn.primary { background: var(--accent); color: var(--accent-text); border-color: transparent; }
 .btn.ghost { background: transparent; }
 .btn.danger { background: var(--danger); color: #fff; border-color: transparent; }
@@ -309,7 +306,6 @@ main { padding: 0 16px calc(env(safe-area-inset-bottom) + 40px); max-width: 640p
   font-size: 17px; font-weight: 700; display: grid; place-items: center;
   transition: transform 0.12s ease;
 }
-.sug-btn:active { transform: scale(0.85); }
 .sug-btn.yes { background: var(--accent); color: var(--accent-text); border-color: transparent; }
 .sug-btn.no { color: var(--muted); }
 
@@ -346,7 +342,6 @@ main { padding: 0 16px calc(env(safe-area-inset-bottom) + 40px); max-width: 640p
   border-radius: 999px; padding: 8px 14px; font-size: 16px;
   transition: transform 0.1s ease;
 }
-.chip:active { transform: scale(0.95); }
 .chip[aria-pressed="true"] { background: var(--accent); color: var(--accent-text); border-color: var(--accent); font-weight: 600; }
 .chip[aria-pressed="true"]::before { content: "✓ "; }
 
@@ -410,7 +405,6 @@ main { padding: 0 16px calc(env(safe-area-inset-bottom) + 40px); max-width: 640p
 
 /* ---------- Streak pill is a button now ---------- */
 button.streak { border: 0; font-family: inherit; line-height: inherit; }
-button.streak:active { transform: scale(0.94); }
 .streak.bump { animation: bump 0.7s cubic-bezier(0.3, 1.6, 0.5, 1); }
 @keyframes bump {
   0% { transform: scale(1); }
@@ -452,3 +446,25 @@ button.streak:active { transform: scale(0.94); }
 .sw.complete { background: var(--accent); }
 .sw.partial { background: color-mix(in srgb, var(--accent) 30%, var(--surface-2)); }
 .sw.missed { background: var(--missed); }
+
+/* ---------- Press-down feel for every button ---------- */
+/* Shrinks a little and darkens while your finger is on it, then springs back. */
+button, .chip {
+  transition: transform 0.18s cubic-bezier(0.3, 1.4, 0.5, 1), filter 0.18s ease, background-color 0.2s ease, opacity 0.18s ease;
+}
+button.pressed, .chip.pressed {
+  transform: scale(0.94);
+  filter: brightness(0.88);
+  transition: transform 0.06s ease-out, filter 0.06s ease-out;
+}
+/* Text-only and small header buttons: a gentler press */
+.link-btn.pressed { transform: scale(0.95); filter: none; opacity: 0.55; }
+.icon-btn.pressed { transform: scale(0.88); filter: none; background: rgba(255, 255, 255, 0.18); }
+.seg button.pressed, .day-switch button.pressed, .days button.pressed { transform: scale(0.93); }
+.sug-btn.pressed { transform: scale(0.86); }
+/* Tapping a to-do to edit it: the whole row presses in slightly */
+.item-body.pressed { transform: none; filter: none; }
+.item:has(.item-body.pressed) { transform: scale(0.98); background: var(--surface-2); transition: transform 0.06s ease-out, background-color 0.06s; }
+@media (prefers-reduced-motion: reduce) {
+  button.pressed, .chip.pressed, .item:has(.item-body.pressed) { transform: none; }
+}

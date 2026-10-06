@@ -23,18 +23,34 @@
       position: fixed; inset: 0; z-index: 100;
       background: #1b1d22;
       display: flex; align-items: center; justify-content: center;
-      transition: opacity 0.4s ease;
+      transition: opacity 0.6s ease;
     }
     #splash .glow {
       position: absolute; width: 360px; height: 360px; border-radius: 50%;
       background: radial-gradient(circle, rgba(255,138,61,0.85) 0%, rgba(217,69,43,0.45) 40%, rgba(27,29,34,0) 70%);
-      animation: glow-in 0.9s ease-out both, glow-pulse 1.6s ease-in-out 0.9s infinite alternate;
+      animation: glow-in 1.1s ease-out both, glow-pulse 1.4s ease-in-out 1.1s infinite alternate;
     }
     #splash svg {
       position: relative; width: 104px; height: 104px;
-      animation: flame-in 0.55s cubic-bezier(0.3, 1.5, 0.5, 1) 0.1s both;
+      animation: flame-in 0.7s cubic-bezier(0.3, 1.5, 0.5, 1) 0.15s both;
       transform-origin: 50% 85%;
-      transition: transform 0.4s ease;
+      transition: transform 0.6s ease;
+      overflow: visible;
+    }
+    /* The flame sways and stretches like a real one; the inner part flickers faster */
+    #splash .flame-outer, #splash .flame-inner { transform-box: fill-box; transform-origin: 50% 100%; }
+    #splash .flame-outer { animation: flicker-outer 1.3s ease-in-out 0.6s infinite; }
+    #splash .flame-inner { animation: flicker-inner 0.85s ease-in-out 0.6s infinite; }
+    @keyframes flicker-outer {
+      0%, 100% { transform: scale(1, 1) skewX(0deg); }
+      25% { transform: scale(0.97, 1.05) skewX(-3deg); }
+      50% { transform: scale(1.02, 0.97) skewX(2deg); }
+      75% { transform: scale(0.98, 1.03) skewX(-1.5deg); }
+    }
+    @keyframes flicker-inner {
+      0%, 100% { transform: scale(1, 1) skewX(0deg); }
+      30% { transform: scale(0.92, 1.1) skewX(4deg); }
+      60% { transform: scale(1.05, 0.93) skewX(-3deg); }
     }
     #splash.leaving { opacity: 0; pointer-events: none; }
     #splash.leaving svg { transform: scale(1.2); }
@@ -42,7 +58,7 @@
     @keyframes glow-pulse { to { transform: scale(1.08); opacity: 0.85; } }
     @keyframes flame-in { from { transform: scale(0.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
     @media (prefers-reduced-motion: reduce) {
-      #splash .glow, #splash svg { animation: none; }
+      #splash .glow, #splash svg, #splash .flame-outer, #splash .flame-inner { animation: none; }
     }
   </style>
 </head>
@@ -50,8 +66,8 @@
   <div id="splash" aria-hidden="true">
     <div class="glow"></div>
     <svg viewBox="128 70 256 366">
-      <path d="M256 70 C 290 140, 384 196, 384 302 C 384 376, 326 436, 256 436 C 186 436, 128 376, 128 302 C 128 240, 166 202, 196 174 C 198 220, 214 248, 240 258 C 228 190, 232 126, 256 70 Z" fill="#fff4e6"/>
-      <path d="M256 232 C 274 270, 320 296, 320 348 C 320 386, 292 412, 256 412 C 220 412, 192 386, 192 350 C 192 318, 212 298, 228 284 C 232 306, 240 318, 252 322 C 244 290, 246 262, 256 232 Z" fill="#ffb347"/>
+      <path class="flame-outer" d="M256 70 C 290 140, 384 196, 384 302 C 384 376, 326 436, 256 436 C 186 436, 128 376, 128 302 C 128 240, 166 202, 196 174 C 198 220, 214 248, 240 258 C 228 190, 232 126, 256 70 Z" fill="#fff4e6"/>
+      <path class="flame-inner" d="M256 232 C 274 270, 320 296, 320 348 C 320 386, 292 412, 256 412 C 220 412, 192 386, 192 350 C 192 318, 212 298, 228 284 C 232 306, 240 318, 252 322 C 244 290, 246 262, 256 232 Z" fill="#ffb347"/>
     </svg>
   </div>
   <script>
