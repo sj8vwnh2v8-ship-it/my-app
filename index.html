@@ -147,6 +147,16 @@
       <ul id="suggest-list" class="suggest-list"></ul>
     </section>
 
+    <section id="wrapup" class="card wrapup" hidden>
+      <strong id="wrapup-title"></strong>
+      <p class="muted small" id="wrapup-sub"></p>
+      <ul id="wrapup-list" class="carry-list"></ul>
+      <div class="carry-actions">
+        <button class="btn ghost" id="wrapup-later">Later</button>
+        <button class="btn primary" id="wrapup-all">Move all to tomorrow</button>
+      </div>
+    </section>
+
     <div id="rest-box" class="card rest-box" hidden></div>
 
     <ul id="list" class="list" aria-label="Today's to-dos"></ul>
@@ -372,7 +382,7 @@
           <ul>
             <li>Switch to <b>Tomorrow</b> to plan ahead</li>
             <li>Make a to-do <b>repeat</b> every day or on certain weekdays. It shows up by itself</li>
-            <li>Didn't finish something? Next day, Ember asks if you want to <b>bring it along</b></li>
+            <li>Didn't finish something? In the evening, Ember offers to <b>move it to tomorrow</b>, and the next day it asks if you want to <b>bring along</b> anything left</li>
           </ul>
         </div>
       </article>

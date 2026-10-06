@@ -5,7 +5,7 @@
 //  All data is kept in this browser's local storage.
 // ============================================================
 
-const APP_VERSION = '1.8.1';
+const APP_VERSION = '1.9.0';
 // The reminder service's web address. Reminders are switched off (and hidden
 // in the app) while this is empty. To turn them on, install the service in
 // worker/ on Cloudflare and put its address here.
@@ -372,8 +372,91 @@ function render() {
   renderBackupNudge();
   renderCarryOver();
   renderSuggestions();
+  renderWrapUp();
   renderRestBox();
   renderList();
+}
+
+// ---------- Evening wrap-up ----------
+// After 8 PM, offer to move what's left to tomorrow (or skip today's copy
+// of a repeating to-do, since it comes back tomorrow anyway).
+const WRAPUP_HOUR = 20;
+
+function wrapUpItems() {
+  return sortedItems(itemsForDay(currentDay)).filter((i) => !i.done);
+}
+
+function wrapUpWanted() {
+  return !viewTomorrow
+    && new Date().getHours() >= WRAPUP_HOUR
+    && dateKey() === currentDay
+    && !isRestDay(currentDay)
+    && state.meta.wrapUpDismissed !== currentDay
+    && wrapUpItems().length > 0;
+}
+
+function renderWrapUp() {
+  const card = $('wrapup');
+  const items = wrapUpWanted() ? wrapUpItems() : [];
+  card.hidden = items.length === 0;
+  if (card.hidden) return;
+  $('wrapup-title').textContent = `🌙 ${items.length} left today`;
+  const anyDone = itemsForDay(currentDay).some((i) => i.done);
+  $('wrapup-sub').textContent = anyDone
+    ? 'Finish them for your streak, or move them to tomorrow.'
+    : 'Finish at least one thing today to keep your streak going. You can move the rest to tomorrow.';
+  const list = $('wrapup-list');
+  list.replaceChildren();
+  for (const item of items) {
+    const li = document.createElement('li');
+    const text = document.createElement('span');
+    text.className = 'carry-text';
+    text.textContent = item.text;
+    if (item.repeatId) {
+      const note = document.createElement('span');
+      note.className = 'carry-date';
+      note.textContent = '↻ Comes back tomorrow';
+      text.appendChild(note);
+    }
+    const btn = document.createElement('button');
+    btn.className = 'mini yes';
+    btn.textContent = item.repeatId ? 'Skip' : 'Tomorrow';
+    btn.addEventListener('click', () => {
+      const undo = clearForTonight([item]);
+      afterWrapUp(item.repeatId ? 'Skipped for today' : 'Moved to tomorrow', undo);
+    });
+    li.append(text, btn);
+    list.appendChild(li);
+  }
+}
+
+// Moves one-time to-dos to tomorrow and skips today's repeating ones.
+// Returns a function that undoes it.
+function clearForTonight(items) {
+  const tomorrow = addDays(currentDay, 1);
+  const before = items.map((i) => ({ item: i, date: i.date, deleted: i.deleted }));
+  for (const i of items) {
+    if (i.repeatId) i.deleted = true;
+    else { i.date = tomorrow; i.movedFrom = currentDay; }
+  }
+  save();
+  return () => {
+    for (const b of before) { b.item.date = b.date; b.item.deleted = b.deleted; delete b.item.movedFrom; }
+    save();
+    render();
+  };
+}
+
+function afterWrapUp(message, undo) {
+  render();
+  const today = itemsForDay(currentDay);
+  if (today.length && today.every((i) => i.done)) {
+    // Everything left is done now, so the day counts. Celebrate, but keep Undo.
+    celebrate();
+    setTimeout(() => showToast(`${message} · Day complete! 🔥 ${computeStreak()}`, 'Undo', undo), 350);
+  } else {
+    showToast(message, 'Undo', undo);
+  }
 }
 
 // The 😴 rest-day box: offered on Tomorrow, shown as a banner on a rest day.
@@ -1504,6 +1587,12 @@ function setView(tomorrow) {
   render();
 }
 $('view-today').addEventListener('click', () => setView(false));
+$('wrapup-later').addEventListener('click', () => { state.meta.wrapUpDismissed = currentDay; save(); render(); });
+$('wrapup-all').addEventListener('click', () => {
+  const items = wrapUpItems();
+  const undo = clearForTonight(items);
+  afterWrapUp(`Moved ${items.length} to tomorrow`, undo);
+});
 $('view-tomorrow').addEventListener('click', () => setView(true));
 $('streak').addEventListener('click', () => { renderProgress(); openSheet('progress-sheet'); });
 $('progress-close').addEventListener('click', closeSheets);
@@ -1583,7 +1672,10 @@ $('remind-section').hidden = !REMINDER_API;
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') { runDailyCheck(); checkReminderStatus(); }
 });
-setInterval(() => { if (dateKey() !== currentDay) runDailyCheck(); }, 60 * 1000);
+setInterval(() => {
+  if (dateKey() !== currentDay) runDailyCheck();
+  else if (wrapUpWanted() === $('wrapup').hidden) render(); // 8 PM arrived while the app was open
+}, 60 * 1000);
 
 runDailyCheck();
 startFirstRun();
