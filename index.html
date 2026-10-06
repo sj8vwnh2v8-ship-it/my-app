@@ -122,6 +122,12 @@
       <button class="link-btn" id="dismiss-tip">Got it</button>
     </section>
 
+    <section id="recap" class="card recap" hidden>
+      <strong>📊 Your week</strong>
+      <ul id="recap-list" class="recap-list"></ul>
+      <div class="carry-actions"><button class="btn primary" id="recap-ok">Nice!</button></div>
+    </section>
+
     <section id="backup-nudge" class="card nudge" hidden>
       <strong id="nudge-title"></strong>
       <p class="muted small">Your to-dos live only on this phone. Save a copy to iCloud Drive or Files so you can't lose them.</p>
@@ -171,6 +177,10 @@
     </div>
 
     <p id="all-done" class="all-done" hidden>Everything's done for today. Nice work.</p>
+    <button class="link-btn share-list" id="share-list" hidden>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7.5 7.5 12 3l4.5 4.5M6 11H5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-1"/></svg>
+      Share this list
+    </button>
     <p class="hint muted" id="swipe-hint" hidden>Tip: tap to edit, swipe left to delete, or press and hold to drag it.</p>
   </main>
 
@@ -244,6 +254,12 @@
       <button class="link-btn" id="settings-close">Done</button>
     </div>
 
+    <h3>Sound</h3>
+    <label class="switch-row">
+      <span>Play a sound when you check things off</span>
+      <input type="checkbox" id="sound-toggle" switch>
+    </label>
+
     <h3>Help</h3>
     <button class="btn" id="replay-tour">How Ember works</button>
 
@@ -310,6 +326,16 @@
       <li>❄️ Every 7 days in a row earns a freeze (max 2). It's used automatically if you miss a day</li>
       <li>😴 1 rest day a week, set from <b>Tomorrow</b></li>
     </ul>
+  </section>
+
+  <!-- Milestone celebration -->
+  <section id="milestone" class="milestone" role="dialog" aria-modal="true" aria-labelledby="milestone-num" hidden>
+    <div class="milestone-card">
+      <div class="art-welcome small"><div class="m-glow"></div><svg class="m-flame" viewBox="128 70 256 366" aria-hidden="true"><path d="M256 70 C 290 140, 384 196, 384 302 C 384 376, 326 436, 256 436 C 186 436, 128 376, 128 302 C 128 240, 166 202, 196 174 C 198 220, 214 248, 240 258 C 228 190, 232 126, 256 70 Z" fill="#fff4e6"/><path d="M256 232 C 274 270, 320 296, 320 348 C 320 386, 292 412, 256 412 C 220 412, 192 386, 192 350 C 192 318, 212 298, 228 284 C 232 306, 240 318, 252 322 C 244 290, 246 262, 256 232 Z" fill="#ffb347"/></svg></div>
+      <h2 id="milestone-num"></h2>
+      <p id="milestone-msg"></p>
+      <button class="btn primary" id="milestone-ok">Keep it going</button>
+    </div>
   </section>
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden>

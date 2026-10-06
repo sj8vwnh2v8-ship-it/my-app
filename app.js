@@ -5,7 +5,7 @@
 //  All data is kept in this browser's local storage.
 // ============================================================
 
-const APP_VERSION = '1.11.0';
+const APP_VERSION = '1.12.0';
 // The reminder service's web address. Reminders are switched off (and hidden
 // in the app) while this is empty. To turn them on, install the service in
 // worker/ on Cloudflare and put its address here.
@@ -444,7 +444,7 @@ function toggleDone(id, row) {
   item.done = !item.done;
   item.doneAt = item.done ? Date.now() : null;
   save();
-  if (item.done) haptic();
+  if (item.done) { haptic(); playSound('check'); }
 
   if (!row) { render(); return; }
   row.classList.toggle('done', item.done);
@@ -527,6 +527,7 @@ const $ = (id) => document.getElementById(id);
 function render() {
   renderHeader();
   renderInstallTip();
+  renderRecap();
   renderBackupNudge();
   renderCarryOver();
   renderSuggestions();
@@ -875,6 +876,7 @@ function renderList({ animate = false } = {}) {
 
   $('empty').hidden = items.length > 0;
   $('all-done').hidden = viewTomorrow || !(items.length > 0 && items.every((i) => i.done));
+  $('share-list').hidden = items.length === 0;
   $('swipe-hint').hidden = !(items.length > 0 && items.length <= 3);
 }
 
@@ -1519,25 +1521,36 @@ function renderBackupNudge() {
 function celebrate() {
   const info = streakInfo();
   const n = info.streak;
-  let msg = n > 1 ? `All done! 🔥 ${n}-day streak` : 'All done for today! 🎉';
-  if (info.earnedToday) msg += ' · You earned a ❄️ freeze!';
-  setTimeout(() => showToast(msg), 300);
+  playSound('complete');
   const pill = $('streak');
   pill.classList.remove('bump');
   void pill.offsetWidth;
   pill.classList.add('bump');
-  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches || !document.body.animate) return;
+  if (MILESTONES[n] && state.meta.milestoneShown !== `${currentDay}:${n}`) {
+    state.meta.milestoneShown = `${currentDay}:${n}`;
+    save();
+    showMilestone(n, info.earnedToday);
+    return;
+  }
+  let msg = n > 1 ? `All done! 🔥 ${n}-day streak` : 'All done for today! 🎉';
+  if (info.earnedToday) msg += ' · You earned a ❄️ freeze!';
+  setTimeout(() => showToast(msg), 300);
+  burstConfetti(90);
+}
 
+function burstConfetti(count, originY = 0.38) {
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches || !document.body.animate) return;
   const colors = ['#ff8a3d', '#e2622a', '#ffd166', '#ffb347', '#e5484d', '#fff4e6'];
   const box = document.createElement('div');
   box.className = 'confetti';
   box.setAttribute('aria-hidden', 'true');
   document.body.appendChild(box);
   const w = window.innerWidth;
-  for (let k = 0; k < 90; k++) {
+  for (let k = 0; k < count; k++) {
     const piece = document.createElement('i');
     piece.style.background = colors[k % colors.length];
     piece.style.left = `${w / 2}px`;
+    piece.style.top = `${originY * 100}%`;
     if (k % 3 === 0) piece.style.borderRadius = '50%';
     box.appendChild(piece);
     const angle = (Math.random() * 140 + 200) * (Math.PI / 180); // mostly upward
@@ -1552,6 +1565,136 @@ function celebrate() {
     ], { duration: 1600 + Math.random() * 900, easing: 'cubic-bezier(0.2, 0.6, 0.4, 1)', fill: 'forwards' });
   }
   setTimeout(() => box.remove(), 2700);
+}
+
+// ---------- Milestones (7, 30, 100, 365 days) ----------
+
+const MILESTONES = {
+  7: 'A whole week. You’re on fire.',
+  30: 'Thirty days! This is a habit now.',
+  100: 'One hundred days. Legendary.',
+  365: 'A full year. Incredible.',
+};
+
+function showMilestone(n, earnedFreeze) {
+  $('milestone-num').textContent = `${n}-day streak!`;
+  $('milestone-msg').textContent = MILESTONES[n] + (earnedFreeze ? ' You earned a ❄️ freeze too.' : '');
+  $('milestone').hidden = false;
+  playSound('milestone');
+  haptic();
+  burstConfetti(110, 0.42);
+  setTimeout(() => burstConfetti(90, 0.3), 450);
+}
+
+// ---------- Sounds (optional, off by default) ----------
+
+let audioCtx = null;
+
+function playSound(kind) {
+  if (!state.meta.sounds) return;
+  try {
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    const t0 = audioCtx.currentTime;
+    const tone = (freq, start, length, volume, endFreq) => {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, t0 + start);
+      if (endFreq) osc.frequency.exponentialRampToValueAtTime(endFreq, t0 + start + length * 0.6);
+      gain.gain.setValueAtTime(0.0001, t0 + start);
+      gain.gain.exponentialRampToValueAtTime(volume, t0 + start + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + start + length);
+      osc.connect(gain).connect(audioCtx.destination);
+      osc.start(t0 + start);
+      osc.stop(t0 + start + length + 0.02);
+    };
+    if (kind === 'check') tone(660, 0, 0.13, 0.16, 990);                    // soft pop
+    if (kind === 'complete') [1047, 1319, 1568].forEach((f, k) => tone(f, k * 0.09, 0.32, 0.11)); // little chime
+    if (kind === 'milestone') [784, 988, 1175, 1568].forEach((f, k) => tone(f, k * 0.11, 0.5, 0.12));
+  } catch (e) { /* no sound available */ }
+}
+
+// ---------- Weekly recap (Sundays) ----------
+
+function weeklyRecap() {
+  const days = Array.from({ length: 7 }, (_, k) => addDays(currentDay, k - 7)); // last Sunday → yesterday
+  const byDay = dayStats();
+  let finished = 0, completeDays = 0, planned = 0, best = null;
+  for (const d of days) {
+    const st = byDay.get(d);
+    if (!st) continue;
+    planned++;
+    finished += st.done;
+    if (dayStatus(d, byDay) === 'complete') completeDays++;
+    if (!best || st.done > best.done) best = { day: d, done: st.done };
+  }
+  if (planned < 2) return null;
+  let lastWeek = 0;
+  for (let k = 8; k <= 14; k++) { const st = byDay.get(addDays(currentDay, -k)); if (st) lastWeek += st.done; }
+  // Most consistent: the to-do you finished on the most different days.
+  const counts = new Map();
+  for (const i of state.items) {
+    if (!i.done || i.deleted || i.date < days[0] || i.date >= currentDay) continue;
+    const key = normText(i.text);
+    const e = counts.get(key) || { text: i.text, days: new Set() };
+    e.days.add(i.date);
+    counts.set(key, e);
+  }
+  const habit = [...counts.values()].sort((a, b) => b.days.size - a.days.size)[0];
+  return {
+    finished, lastWeek, completeDays,
+    best: best && best.done ? best : null,
+    habit: habit && habit.days.size >= 3 ? habit : null,
+    streak: computeStreak(byDay),
+  };
+}
+
+function renderRecap() {
+  const card = $('recap');
+  const show = !viewTomorrow && parseKey(currentDay).getDay() === 0 && state.meta.recapSeen !== currentDay;
+  const r = show ? weeklyRecap() : null;
+  card.hidden = !r;
+  if (!r) return;
+  const lines = [];
+  const diff = r.finished - r.lastWeek;
+  lines.push([`✅ ${r.finished} to-dos finished`, r.lastWeek ? (diff > 0 ? `${diff} more than last week` : diff < 0 ? `${-diff} fewer than last week` : 'same as last week') : '']);
+  lines.push([`🔥 ${r.completeDays} of 7 days complete`, r.streak > 1 ? `streak: ${r.streak} days` : '']);
+  if (r.best) lines.push([`⭐ Best day: ${parseKey(r.best.day).toLocaleDateString(undefined, { weekday: 'long' })}`, `${r.best.done} done`]);
+  if (r.habit) lines.push([`💪 Most consistent: ${r.habit.text}`, `${r.habit.days.size} days`]);
+  const list = $('recap-list');
+  list.replaceChildren(...lines.map(([main, sub]) => {
+    const li = document.createElement('li');
+    const a = document.createElement('span');
+    a.textContent = main;
+    li.appendChild(a);
+    if (sub) { const b = document.createElement('em'); b.textContent = sub; li.appendChild(b); }
+    return li;
+  }));
+}
+
+// ---------- Share a list ----------
+
+function listAsText() {
+  const day = viewDay();
+  const items = sortedItems(itemsForDay(day));
+  const title = parseKey(day).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
+  return `${title}\n\n` + items.map((i) => `${i.done ? '✓' : '○'} ${i.text}`).join('\n');
+}
+
+async function shareList() {
+  const text = listAsText();
+  try {
+    if (navigator.share) { await navigator.share({ text }); return; }
+  } catch (e) {
+    if (e && e.name === 'AbortError') return; // you closed the share menu
+  }
+  try {
+    await navigator.clipboard.writeText(text);
+    showToast('List copied. Paste it anywhere.');
+  } catch (e) {
+    showToast('Couldn’t share from this browser.');
+  }
 }
 
 // ---------- Progress panel (tap the streak) ----------
@@ -1873,6 +2016,14 @@ function setView(tomorrow) {
   render();
 }
 $('view-today').addEventListener('click', () => setView(false));
+$('recap-ok').addEventListener('click', () => { state.meta.recapSeen = currentDay; save(); render(); });
+$('milestone-ok').addEventListener('click', () => { $('milestone').hidden = true; });
+$('share-list').addEventListener('click', shareList);
+$('sound-toggle').addEventListener('change', (e) => {
+  state.meta.sounds = e.target.checked;
+  save();
+  if (state.meta.sounds) playSound('check');
+});
 $('wrapup-later').addEventListener('click', () => { state.meta.wrapUpDismissed = currentDay; save(); render(); });
 $('wrapup-all').addEventListener('click', () => {
   const items = wrapUpItems();
@@ -1894,7 +2045,8 @@ $('nudge-later').addEventListener('click', () => { state.meta.backupSnoozeDay = 
 
 $('dismiss-tip').addEventListener('click', () => { state.meta.tipDismissed = true; save(); render(); });
 
-$('open-settings').addEventListener('click', () => { renderRepeatList(); renderProfileSummary(); renderReminderSettings(); openSheet('settings-sheet'); });
+$('open-settings').addEventListener('click', () => {
+  $('sound-toggle').checked = !!state.meta.sounds; renderRepeatList(); renderProfileSummary(); renderReminderSettings(); openSheet('settings-sheet'); });
 $('remind-on').addEventListener('click', enableReminders);
 $('remind-note-on').addEventListener('click', enableReminders);
 $('remind-off').addEventListener('click', disableReminders);
