@@ -609,7 +609,7 @@ function saveEdit() {
 
 // ---------- Suggestions ----------
 
-// The 💡 button in the green bar opens and closes the card. After 7 days of
+// The 💡 button in the header opens and closes the card. After 7 days of
 // use the card also opens by itself each day (until you hide it that day).
 let suggestOpen = null; // null = decide automatically, true/false = you chose
 
