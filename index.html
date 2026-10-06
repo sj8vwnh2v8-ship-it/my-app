@@ -70,6 +70,10 @@
         <div id="streak" class="streak" title="Days in a row you finished everything">
           <span aria-hidden="true">🔥</span><span id="streak-count">0</span>
         </div>
+        <button id="open-suggest" class="icon-btn bulb-btn" aria-label="Suggestions" aria-pressed="false">
+          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.6 10.8c.6.5 1 1.2 1.1 2V16h5v-.2c.1-.8.5-1.5 1.1-2A6 6 0 0 0 12 3z"/></svg>
+          <span id="suggest-badge" class="badge" hidden></span>
+        </button>
         <button id="open-settings" class="icon-btn" aria-label="Settings">
           <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
         </button>
@@ -101,7 +105,10 @@
     </section>
 
     <section id="suggest" class="card suggest" hidden>
-      <strong>Suggested for today</strong>
+      <div class="suggest-head">
+        <strong>Suggested for today</strong>
+        <button class="link-btn" id="suggest-hide">Hide</button>
+      </div>
       <ul id="suggest-list" class="suggest-list"></ul>
     </section>
 
@@ -175,7 +182,6 @@
 
     <h3>Suggestions</h3>
     <p id="suggest-status" class="muted small"></p>
-    <button class="btn" id="preview-suggest">Preview suggestions now</button>
 
     <h3>Repeating to-dos</h3>
     <ul id="repeat-list" class="repeat-list"></ul>

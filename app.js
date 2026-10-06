@@ -5,7 +5,7 @@
 //  All data is kept in this browser's local storage.
 // ============================================================
 
-const APP_VERSION = '1.1.0';
+const APP_VERSION = '1.1.2';
 const STORE_KEY = 'today-app-data';
 const PRIORITY_RANK = { high: 0, med: 1, low: 2 };
 const PRIORITY_LABEL = { high: 'High', med: 'Medium', low: 'Low' };
@@ -298,10 +298,11 @@ function render() {
 
 function renderHeader() {
   const d = parseKey(currentDay);
-  $('today-label').textContent = d.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
+  $('today-label').textContent = d.toLocaleDateString(undefined, { weekday: 'long' });
+  const shortDate = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
   const items = itemsForDay(currentDay);
   const done = items.filter((i) => i.done).length;
-  $('progress').textContent = items.length ? `${done} of ${items.length} done` : 'Nothing planned yet';
+  $('progress').textContent = shortDate + ' · ' + (items.length ? `${done} of ${items.length} done` : 'Nothing planned yet');
   const streak = computeStreak();
   $('streak-count').textContent = streak;
   $('streak').classList.toggle('zero', streak === 0);
@@ -565,13 +566,32 @@ function saveEdit() {
 
 // ---------- Suggestions ----------
 
-let previewSuggestions = false; // turned on by the button in Settings, until the app is closed
+// The 💡 button in the green bar opens and closes the card. After 7 days of
+// use the card also opens by itself each day (until you hide it that day).
+let suggestOpen = null; // null = decide automatically, true/false = you chose
+
+function suggestCardWanted() {
+  if (suggestOpen !== null) return suggestOpen;
+  return suggestionsUnlocked(state) && state.suggest.hiddenDay !== currentDay;
+}
+
+function setSuggestOpen(open) {
+  suggestOpen = open;
+  if (!open) { state.suggest.hiddenDay = currentDay; save(); }
+  render();
+}
 
 function renderSuggestions() {
   const card = $('suggest');
-  const show = state.profile && (previewSuggestions || suggestionsUnlocked(state));
-  const list = show ? getSuggestions(state, currentDay) : [];
-  card.hidden = list.length === 0;
+  const list = state.profile ? getSuggestions(state, currentDay) : [];
+  const open = suggestCardWanted() && list.length > 0;
+  card.hidden = !open;
+  const btn = $('open-suggest');
+  btn.setAttribute('aria-pressed', String(open));
+  const badge = $('suggest-badge');
+  badge.hidden = open || list.length === 0;
+  badge.textContent = list.length;
+  btn.setAttribute('aria-label', list.length && !open ? `Suggestions (${list.length} new)` : 'Suggestions');
   const ul = $('suggest-list');
   ul.replaceChildren();
   for (const sug of list) {
@@ -646,9 +666,8 @@ function finishOnboarding(skipped) {
   closeOnboarding();
   render();
   if (!skipped) {
-    showToast(previewSuggestions || suggestionsUnlocked(state)
-      ? 'Saved! Check your suggestions.'
-      : `Saved! Suggestions start after ${SUGGEST_AFTER_DAYS} days of use.`);
+    if (getSuggestions(state, currentDay).length) setSuggestOpen(true);
+    showToast('Saved! Tap 💡 anytime for ideas.');
   }
 }
 
@@ -770,8 +789,8 @@ function renderProfileSummary() {
   }
   const days = daysOfUse(state);
   $('suggest-status').textContent = days >= SUGGEST_AFTER_DAYS
-    ? 'Suggestions are on. They show under the green bar when there’s something to suggest.'
-    : `Suggestions start after ${SUGGEST_AFTER_DAYS} days of use. You’re at ${days} of ${SUGGEST_AFTER_DAYS}.`;
+    ? 'Tap 💡 in the green bar for ideas. They also open by themselves each day.'
+    : `Tap 💡 in the green bar for ideas anytime. After ${SUGGEST_AFTER_DAYS} days of use (you’re at ${days}), they’ll also learn from your habits and open by themselves.`;
 }
 
 // ---------- Settings panel ----------
@@ -947,18 +966,18 @@ $('dismiss-tip').addEventListener('click', () => { state.meta.tipDismissed = tru
 
 $('open-settings').addEventListener('click', () => { renderRepeatList(); renderProfileSummary(); openSheet('settings-sheet'); });
 $('edit-profile').addEventListener('click', () => { closeSheets(); openOnboarding(); });
-$('preview-suggest').addEventListener('click', () => {
-  closeSheets();
-  if (!state.profile || (!state.profile.hobbies.length && !state.profile.goals.length)) {
-    showToast('Add some hobbies or goals first so there’s something to suggest.');
+$('open-suggest').addEventListener('click', () => {
+  if (suggestCardWanted() && !$('suggest').hidden) { setSuggestOpen(false); return; }
+  if (getSuggestions(state, currentDay).length) { setSuggestOpen(true); return; }
+  const p = state.profile;
+  if (!p || (!p.hobbies.length && !p.goals.length)) {
+    showToast('Add some hobbies or goals so there’s something to suggest.');
     openOnboarding();
-    previewSuggestions = true;
-    return;
+  } else {
+    showToast('That’s all the ideas for today. More tomorrow!');
   }
-  previewSuggestions = true;
-  render();
-  showToast(getSuggestions(state, currentDay).length ? 'Here’s a preview of your suggestions' : 'Nothing to suggest right now. Try adding a goal.');
 });
+$('suggest-hide').addEventListener('click', () => setSuggestOpen(false));
 
 $('ob-next').addEventListener('click', () => {
   if (ob.step < 2) { ob.step++; renderOnboarding(); } else finishOnboarding(false);
