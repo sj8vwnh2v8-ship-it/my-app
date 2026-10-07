@@ -1,0 +1,18 @@
+# The reminder service that sends notifications to your phone.
+# GitHub Actions installs this on Cloudflare (see .github/workflows/deploy-reminders.yml).
+name = "today-reminders"
+main = "src/index.js"
+compatibility_date = "2025-09-01"
+workers_dev = true
+
+[vars]
+ALLOWED_ORIGIN = "https://sj8vwnh2v8-ship-it.github.io"
+VAPID_SUBJECT = "https://sj8vwnh2v8-ship-it.github.io/my-app/"
+
+[[durable_objects.bindings]]
+name = "REMINDERS"
+class_name = "ReminderStore"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["ReminderStore"]

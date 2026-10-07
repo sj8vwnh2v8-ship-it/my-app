@@ -1,0 +1,591 @@
+<!doctype html>
+<html lang="en" class="booting">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Ember</title>
+  <meta name="description" content="Ember: a simple daily to-do list that keeps your streak alive.">
+  <meta name="theme-color" content="#1f2126" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#1b1d22" media="(prefers-color-scheme: dark)">
+  <!-- iPhone home-screen app settings -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Ember">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="preload" href="fonts/fraunces.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="styles.css">
+  <!-- Splash screen styles live here (not in styles.css) so they show instantly -->
+  <style>
+    html.booting, html.booting body { background: #1b1d22; }
+    #splash {
+      position: fixed; inset: 0; z-index: 100;
+      background: #1b1d22;
+      display: flex; align-items: center; justify-content: center;
+      transition: opacity 0.6s ease;
+    }
+    #splash .glow {
+      position: absolute; width: 360px; height: 360px; border-radius: 50%;
+      background: radial-gradient(circle, rgba(255,138,61,0.85) 0%, rgba(217,69,43,0.45) 40%, rgba(27,29,34,0) 70%);
+      animation: glow-in 1.1s ease-out both, glow-pulse 1.4s ease-in-out 1.1s infinite alternate;
+    }
+    #splash svg {
+      position: relative; width: 104px; height: 104px;
+      animation: flame-in 0.7s cubic-bezier(0.3, 1.5, 0.5, 1) 0.15s both;
+      transform-origin: 50% 85%;
+      transition: transform 0.6s ease;
+      overflow: visible;
+    }
+    /* The flame sways and stretches like a real one; the inner part flickers faster */
+    #splash .flame-outer, #splash .flame-inner { transform-box: fill-box; transform-origin: 50% 100%; }
+    #splash .flame-outer { animation: flicker-outer 1.3s ease-in-out 0.6s infinite; }
+    #splash .flame-inner { animation: flicker-inner 0.85s ease-in-out 0.6s infinite; }
+    @keyframes flicker-outer {
+      0%, 100% { transform: scale(1, 1) skewX(0deg); }
+      25% { transform: scale(0.97, 1.05) skewX(-3deg); }
+      50% { transform: scale(1.02, 0.97) skewX(2deg); }
+      75% { transform: scale(0.98, 1.03) skewX(-1.5deg); }
+    }
+    @keyframes flicker-inner {
+      0%, 100% { transform: scale(1, 1) skewX(0deg); }
+      30% { transform: scale(0.92, 1.1) skewX(4deg); }
+      60% { transform: scale(1.05, 0.93) skewX(-3deg); }
+    }
+    #splash.leaving { opacity: 0; pointer-events: none; }
+    #splash.leaving svg { transform: scale(1.2); }
+    @keyframes glow-in { from { transform: scale(0.3); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+    @keyframes glow-pulse { to { transform: scale(1.08); opacity: 0.85; } }
+    @keyframes flame-in { from { transform: scale(0.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+    @media (prefers-reduced-motion: reduce) {
+      #splash .glow, #splash svg, #splash .flame-outer, #splash .flame-inner { animation: none; }
+    }
+  </style>
+</head>
+<body>
+  <div id="splash" aria-hidden="true">
+    <div class="glow"></div>
+    <svg viewBox="128 70 256 366">
+      <path class="flame-outer" d="M256 70 C 290 140, 384 196, 384 302 C 384 376, 326 436, 256 436 C 186 436, 128 376, 128 302 C 128 240, 166 202, 196 174 C 198 220, 214 248, 240 258 C 228 190, 232 126, 256 70 Z" fill="#fff4e6"/>
+      <path class="flame-inner" d="M256 232 C 274 270, 320 296, 320 348 C 320 386, 292 412, 256 412 C 220 412, 192 386, 192 350 C 192 318, 212 298, 228 284 C 232 306, 240 318, 252 322 C 244 290, 246 262, 256 232 Z" fill="#ffb347"/>
+    </svg>
+  </div>
+  <script>
+    // Only show the splash when the app is freshly opened, not on a reload.
+    try {
+      if (sessionStorage.getItem('splash-shown')) {
+        document.getElementById('splash').remove();
+        document.documentElement.classList.remove('booting');
+      }
+      sessionStorage.setItem('splash-shown', '1');
+    } catch (e) {}
+  </script>
+  <header class="top">
+    <div class="top-row">
+      <div>
+        <h1 id="today-label">Today</h1>
+        <p id="progress" class="muted"></p>
+      </div>
+      <div class="top-actions">
+        <button id="streak" class="streak" title="Your progress">
+          <span aria-hidden="true">🔥</span><span id="streak-count">0</span>
+          <span id="freeze-badge" class="freeze-badge" aria-hidden="true" hidden></span>
+        </button>
+        <button id="open-suggest" class="icon-btn bulb-btn" aria-label="Suggestions" aria-pressed="false">
+          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.6 10.8c.6.5 1 1.2 1.1 2V16h5v-.2c.1-.8.5-1.5 1.1-2A6 6 0 0 0 12 3z"/></svg>
+          <span id="suggest-badge" class="badge" hidden></span>
+        </button>
+        <button id="open-settings" class="icon-btn" aria-label="Settings">
+          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="day-switch" role="tablist" aria-label="Which day">
+      <button type="button" role="tab" id="view-today" aria-selected="true">Today</button>
+      <button type="button" role="tab" id="view-tomorrow" aria-selected="false">Tomorrow</button>
+    </div>
+    <form id="add-form" class="add-form" autocomplete="off">
+      <input id="add-input" type="text" placeholder="Add something for today…" enterkeyhint="done" maxlength="200" aria-label="New to-do">
+      <button type="submit" class="add-btn" aria-label="Add">+</button>
+    </form>
+    <div id="quick-hint" class="quick-hint" hidden>
+      <span id="quick-hint-text"></span>
+      <button type="button" id="quick-hint-off" aria-label="Ignore this and add the text as typed">✕</button>
+    </div>
+  </header>
+
+  <main>
+    <section id="install-tip" class="card tip" hidden>
+      <strong>Install this app</strong>
+      <p>Tap <b>Share</b> <span class="share-glyph" aria-hidden="true">⬆︎</span> at the bottom of Safari, then <b>Add to Home Screen</b>. Open it from the new icon.</p>
+      <button class="link-btn" id="dismiss-tip">Got it</button>
+    </section>
+
+    <section id="recap" class="card recap" hidden>
+      <strong>📊 Your week</strong>
+      <ul id="recap-list" class="recap-list"></ul>
+      <div class="carry-actions"><button class="btn primary" id="recap-ok">Nice!</button></div>
+    </section>
+
+    <section id="backup-nudge" class="card nudge" hidden>
+      <strong id="nudge-title"></strong>
+      <p class="muted small">Your to-dos live only on this phone. Save a copy to iCloud Drive or Files so you can't lose them.</p>
+      <div class="nudge-actions">
+        <button class="btn ghost" id="nudge-later">Later</button>
+        <button class="btn primary" id="nudge-save">Save now</button>
+      </div>
+    </section>
+
+    <section id="carry" class="card carry" hidden>
+      <div class="carry-head">
+        <strong id="carry-title"></strong>
+        <p class="muted">Bring them into today?</p>
+      </div>
+      <ul id="carry-list" class="carry-list"></ul>
+      <div class="carry-actions">
+        <button class="btn ghost" id="carry-drop-all">Drop all</button>
+        <button class="btn primary" id="carry-bring-all">Bring all</button>
+      </div>
+    </section>
+
+    <section id="suggest" class="card suggest" hidden>
+      <div class="suggest-head">
+        <strong>Suggested for today</strong>
+        <button class="link-btn" id="suggest-hide">Hide</button>
+      </div>
+      <ul id="suggest-list" class="suggest-list"></ul>
+    </section>
+
+    <section id="wrapup" class="card wrapup" hidden>
+      <strong id="wrapup-title"></strong>
+      <p class="muted small" id="wrapup-sub"></p>
+      <ul id="wrapup-list" class="carry-list"></ul>
+      <div class="carry-actions">
+        <button class="btn ghost" id="wrapup-later">Later</button>
+        <button class="btn primary" id="wrapup-all">Move all to tomorrow</button>
+      </div>
+    </section>
+
+    <div id="rest-box" class="card rest-box" hidden></div>
+
+    <ul id="list" class="list" aria-label="Today's to-dos"></ul>
+
+    <div id="empty" class="empty" hidden>
+      <p class="empty-big">Nothing here yet</p>
+      <p class="muted">Type above to add your first to-do.</p>
+    </div>
+
+    <p id="all-done" class="all-done" hidden>Everything's done for today. Nice work.</p>
+    <button class="link-btn share-list" id="share-list" hidden>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7.5 7.5 12 3l4.5 4.5M6 11H5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-1"/></svg>
+      Share this list
+    </button>
+    <p class="hint muted" id="swipe-hint" hidden>Tip: tap to edit, swipe left to delete, or press and hold to drag it.</p>
+  </main>
+
+  <!-- Edit panel -->
+  <div id="edit-backdrop" class="backdrop" hidden></div>
+  <section id="edit-sheet" class="sheet" role="dialog" aria-modal="true" aria-labelledby="edit-title" hidden>
+    <div class="sheet-head">
+      <h2 id="edit-title">Edit</h2>
+      <button class="link-btn" id="edit-cancel">Cancel</button>
+    </div>
+    <label class="field-label" for="edit-text">To-do</label>
+    <input id="edit-text" type="text" maxlength="200">
+
+    <span class="field-label">Priority</span>
+    <div class="seg" id="edit-priority" role="radiogroup" aria-label="Priority">
+      <button type="button" data-value="" role="radio">None</button>
+      <button type="button" data-value="high" role="radio"><i class="dot high"></i>High</button>
+      <button type="button" data-value="med" role="radio"><i class="dot med"></i>Med</button>
+      <button type="button" data-value="low" role="radio"><i class="dot low"></i>Low</button>
+    </div>
+
+    <span class="field-label">Repeat</span>
+    <div class="seg" id="edit-repeat" role="radiogroup" aria-label="Repeat">
+      <button type="button" data-value="" role="radio">Never</button>
+      <button type="button" data-value="daily" role="radio">Daily</button>
+      <button type="button" data-value="weekly" role="radio">Weekly</button>
+      <button type="button" data-value="monthly" role="radio">Monthly</button>
+    </div>
+    <div id="edit-days" class="days" hidden></div>
+    <div id="edit-weekly-extra" class="weekly-extra" hidden>
+      <div class="seg" id="edit-every" role="radiogroup" aria-label="How often">
+        <button type="button" data-value="1" role="radio">Every week</button>
+        <button type="button" data-value="2" role="radio">Every 2 weeks</button>
+      </div>
+      <button type="button" class="link-btn" id="edit-weekdays">Weekdays</button>
+    </div>
+    <div id="edit-monthly" class="monthly-row" hidden>
+      <label for="edit-dom">On day</label>
+      <select id="edit-dom"></select>
+      <span>of every month</span>
+    </div>
+    <p id="repeat-note" class="muted small" hidden></p>
+    <p id="remind-line" class="small remind-line" hidden></p>
+
+    <div id="time-section" hidden>
+      <span class="field-label">Remind me</span>
+      <div class="remind-row">
+        <label class="remind-toggle"><input type="checkbox" id="remind-eve-on" switch><span>🌙 Night before</span></label>
+        <input id="remind-eve-time" type="time" value="20:00" aria-label="Night before reminder time">
+      </div>
+      <div class="remind-row">
+        <label class="remind-toggle"><input type="checkbox" id="remind-am-on" switch><span>☀️ Day of</span></label>
+        <input id="remind-am-time" type="time" value="09:00" aria-label="Day of reminder time">
+      </div>
+      <div id="remind-note" class="remind-note" hidden>
+        <span>Reminders are off on this phone.</span>
+        <button type="button" class="link-btn" id="remind-note-on">Turn on</button>
+      </div>
+    </div>
+
+    <div class="sheet-actions">
+      <button class="btn danger" id="edit-delete">Delete</button>
+      <button class="btn primary" id="edit-save">Save</button>
+    </div>
+    <div id="delete-choice" class="delete-choice" hidden>
+      <p class="muted small">This item repeats. What should be deleted?</p>
+      <button class="btn danger-soft" id="delete-today">Just today's</button>
+      <button class="btn danger" id="delete-series">Today's and stop repeating</button>
+    </div>
+  </section>
+
+  <!-- Settings panel -->
+  <section id="settings-sheet" class="sheet" role="dialog" aria-modal="true" aria-labelledby="settings-title" hidden>
+    <div class="sheet-head">
+      <h2 id="settings-title">Settings</h2>
+      <button class="link-btn" id="settings-close">Done</button>
+    </div>
+
+    <h3>Sound</h3>
+    <label class="switch-row">
+      <span>Play a sound when you check things off</span>
+      <input type="checkbox" id="sound-toggle" switch>
+    </label>
+
+    <h3>Help</h3>
+    <button class="btn" id="replay-tour">How Ember works</button>
+
+    <h3>Share Ember</h3>
+    <p class="muted small">Send Ember to a friend. They get their own empty list, and nothing of yours is shared.</p>
+    <button class="btn" id="share-app">Share with friends</button>
+
+    <h3>Backup</h3>
+    <p class="muted small">Your to-dos live only on this phone. Save a backup file now and then (to Files or iCloud Drive) so you can restore them if the app is removed.</p>
+    <div class="stack">
+      <button class="btn" id="export-btn">Save a backup</button>
+      <button class="btn" id="import-btn">Restore from a backup</button>
+      <input id="import-file" type="file" accept="application/json,.json" hidden>
+    </div>
+
+    <div id="remind-section">
+      <h3>Reminders</h3>
+      <p id="remind-status" class="small"></p>
+      <p id="remind-sync" class="remind-sync" hidden></p>
+      <div class="stack">
+        <button class="btn primary" id="remind-on" hidden>Turn on reminders</button>
+        <button class="btn" id="remind-test" hidden>Send a test notification</button>
+        <button class="btn ghost" id="remind-off" hidden>Turn off reminders</button>
+      </div>
+    </div>
+
+    <h3>Hobbies &amp; goals</h3>
+    <p id="profile-summary" class="small"></p>
+    <button class="btn" id="edit-profile">Edit hobbies &amp; goals</button>
+
+    <h3>Suggestions</h3>
+    <p id="suggest-status" class="muted small"></p>
+
+    <h3>Repeating to-dos</h3>
+    <ul id="repeat-list" class="repeat-list"></ul>
+
+    <h3>Danger zone</h3>
+    <button class="btn danger-soft" id="erase-btn">Erase all data</button>
+
+    <p class="muted small version">Version <span id="version"></span></p>
+  </section>
+
+  <!-- Progress panel (tap the streak) -->
+  <section id="progress-sheet" class="sheet" role="dialog" aria-modal="true" aria-labelledby="progress-title" hidden>
+    <div class="sheet-head">
+      <h2 id="progress-title">Your progress</h2>
+      <button class="link-btn" id="progress-close">Done</button>
+    </div>
+    <div class="stats">
+      <div class="stat"><span class="stat-num" id="stat-streak">0</span><span class="stat-label">Current streak</span></div>
+      <div class="stat"><span class="stat-num" id="stat-best">0</span><span class="stat-label">Best streak</span></div>
+      <div class="stat"><span class="stat-num" id="stat-week">–</span><span class="stat-label">Done this week</span></div>
+      <div class="stat"><span class="stat-num" id="stat-freezes">0</span><span class="stat-label">❄️ Freezes saved</span></div>
+    </div>
+    <div class="cal-nav">
+      <button type="button" class="cal-arrow" id="cal-prev" aria-label="Previous month">‹</button>
+      <h3 id="cal-title"></h3>
+      <button type="button" class="cal-arrow" id="cal-next" aria-label="Next month">›</button>
+    </div>
+    <div class="cal-head" aria-hidden="true"></div>
+    <div class="cal" id="cal"></div>
+    <div class="legend">
+      <span><i class="sw complete"></i>Done</span>
+      <span><i class="sw partial"></i>Partly</span>
+      <span><i class="sw missed"></i>Missed</span>
+      <span><i class="sw frozen"></i>Freeze</span>
+      <span><i class="sw rest"></i>Rest</span>
+    </div>
+    <p class="cal-tip">Tap a day to see what you did, or plan ahead.</p>
+    <button class="link-btn how-link" id="how-streaks" aria-expanded="false">How streaks work</button>
+    <ul class="how-list" id="how-list" hidden>
+      <li>Finish everything you planned → +1 day</li>
+      <li>Skip a day or leave it empty → streak resets</li>
+      <li>❄️ Every 7 days in a row earns a freeze (max 2). It's used automatically if you miss a day</li>
+      <li>😴 1 rest day a week, set from <b>Tomorrow</b></li>
+    </ul>
+  </section>
+
+  <!-- One day, opened from the calendar -->
+  <section id="day-sheet" class="sheet" role="dialog" aria-modal="true" aria-labelledby="day-title" hidden>
+    <div class="sheet-head">
+      <button class="link-btn" id="day-back">‹ Calendar</button>
+      <button class="link-btn" id="day-close">Done</button>
+    </div>
+    <h2 id="day-title"></h2>
+    <p class="muted day-sub" id="day-sub"></p>
+    <ul class="carry-list day-list" id="day-list"></ul>
+    <form class="day-add" id="day-add" autocomplete="off" hidden>
+      <input type="text" id="day-input" placeholder="Add something for this day…" maxlength="200" enterkeyhint="done">
+      <button type="submit" class="btn primary">Add</button>
+    </form>
+  </section>
+
+  <!-- Day complete: the flame flares up -->
+  <section id="dayend" class="dayend" role="dialog" aria-modal="true" aria-labelledby="dayend-title" hidden>
+    <div class="dayend-glow"></div>
+    <svg class="dayend-flame" viewBox="128 70 256 366" aria-hidden="true"><path class="flame-outer" d="M256 70 C 290 140, 384 196, 384 302 C 384 376, 326 436, 256 436 C 186 436, 128 376, 128 302 C 128 240, 166 202, 196 174 C 198 220, 214 248, 240 258 C 228 190, 232 126, 256 70 Z" fill="#fff4e6"/><path class="flame-inner" d="M256 232 C 274 270, 320 296, 320 348 C 320 386, 292 412, 256 412 C 220 412, 192 386, 192 350 C 192 318, 212 298, 228 284 C 232 306, 240 318, 252 322 C 244 290, 246 262, 256 232 Z" fill="#ffb347"/></svg>
+    <div class="dayend-num" id="dayend-num">0</div>
+    <div class="dayend-unit" id="dayend-unit">days in a row</div>
+    <h2 class="dayend-title" id="dayend-title">Day complete</h2>
+    <p class="dayend-freeze" id="dayend-freeze" hidden>You earned a ❄️ freeze!</p>
+    <p class="dayend-hint">tap anywhere</p>
+  </section>
+
+  <!-- "Want reminders?" pop-up -->
+  <section id="remind-prompt" class="milestone" role="dialog" aria-modal="true" aria-labelledby="remind-prompt-title" hidden>
+    <div class="milestone-card remind-card">
+      <div class="bell" aria-hidden="true">🔔</div>
+      <h2 id="remind-prompt-title">Want reminders?</h2>
+      <p>Ember can remind you about to-dos that repeat weekly or monthly, like <b>“Laundry every Thursday”</b>, at <b>8 PM the night before</b> and <b>9 AM on the day</b>. For one-time to-dos, you pick the time.</p>
+      <button class="btn primary" id="remind-prompt-yes">Turn on reminders</button>
+      <button class="link-btn" id="remind-prompt-no">Not now</button>
+      <p class="small muted fine">You can change this anytime in •••.</p>
+    </div>
+  </section>
+
+  <!-- Milestone celebration -->
+  <section id="milestone" class="milestone" role="dialog" aria-modal="true" aria-labelledby="milestone-num" hidden>
+    <div class="milestone-card">
+      <div class="art-welcome small"><div class="m-glow"></div><svg class="m-flame" viewBox="128 70 256 366" aria-hidden="true"><path d="M256 70 C 290 140, 384 196, 384 302 C 384 376, 326 436, 256 436 C 186 436, 128 376, 128 302 C 128 240, 166 202, 196 174 C 198 220, 214 248, 240 258 C 228 190, 232 126, 256 70 Z" fill="#fff4e6"/><path d="M256 232 C 274 270, 320 296, 320 348 C 320 386, 292 412, 256 412 C 220 412, 192 386, 192 350 C 192 318, 212 298, 228 284 C 232 306, 240 318, 252 322 C 244 290, 246 262, 256 232 Z" fill="#ffb347"/></svg></div>
+      <h2 id="milestone-num"></h2>
+      <p id="milestone-msg"></p>
+      <button class="btn primary" id="milestone-ok">Keep it going</button>
+    </div>
+  </section>
+
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden>
+    <span id="toast-text"></span>
+    <button id="toast-action" class="link-btn" hidden></button>
+  </div>
+
+  <!-- First-time questions: hobbies and goals -->
+  <section id="onboard" class="onboard" role="dialog" aria-modal="true" aria-labelledby="ob-title" hidden>
+    <div class="onboard-head">
+      <div class="onboard-top">
+        <span id="ob-step" class="onboard-step"></span>
+        <button class="onboard-skip" id="ob-skip">Skip</button>
+      </div>
+      <h2 id="ob-title"></h2>
+      <p id="ob-sub"></p>
+    </div>
+    <div class="onboard-body" id="ob-body"></div>
+    <div class="onboard-foot">
+      <button class="btn ghost" id="ob-back">Back</button>
+      <button class="btn primary" id="ob-next">Next</button>
+    </div>
+  </section>
+
+  <!-- Welcome tour (first open, and ••• → How Ember works) -->
+  <section id="tour" class="tour" role="dialog" aria-modal="true" aria-label="How Ember works" hidden>
+    <button class="tour-skip" id="tour-skip">Skip</button>
+    <div class="tour-track" id="tour-track">
+
+      <article class="slide">
+        <div class="art art-welcome"><div class="m-glow"></div><svg class="m-flame" viewBox="128 70 256 366" aria-hidden="true"><path d="M256 70 C 290 140, 384 196, 384 302 C 384 376, 326 436, 256 436 C 186 436, 128 376, 128 302 C 128 240, 166 202, 196 174 C 198 220, 214 248, 240 258 C 228 190, 232 126, 256 70 Z" fill="#fff4e6"/><path d="M256 232 C 274 270, 320 296, 320 348 C 320 386, 292 412, 256 412 C 220 412, 192 386, 192 350 C 192 318, 212 298, 228 284 C 232 306, 240 318, 252 322 C 244 290, 246 262, 256 232 Z" fill="#ffb347"/></svg></div>
+        <div class="slide-text">
+          <h2>Welcome to Ember</h2>
+          <p class="lead">A simple to-do list for <b>today</b> that helps you build a streak of days where you got everything done.</p>
+          <ul>
+            <li>Plan today or any day ahead, with 🔔 reminders</li>
+            <li>Keep your 🔥 streak alive</li>
+            <li>Get ideas based on your hobbies and goals</li>
+            <li>Private: no account, your list stays on your phone</li>
+          </ul>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="art">
+          <div class="m-add"><span>Buy groceries</span><i>+</i></div>
+          <div class="m-item"><span class="m-check"></span><span>Call the dentist</span></div>
+          <div class="m-item m-done"><span class="m-check on"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span><span>Walk the dog</span></div>
+          <div class="m-item m-swipe"><span class="m-check"></span><span>Old idea</span><b>Delete</b></div>
+        </div>
+        <div class="slide-text">
+          <h2>Plan your day</h2>
+          <ul>
+            <li><b>Add:</b> type in the box at the top and tap <b>+</b></li>
+            <li><b>Done:</b> tap the circle to check it off</li>
+            <li><b>Edit:</b> tap a to-do to change it</li>
+            <li><b>Delete:</b> swipe it left (tap <b>Undo</b> if you slip)</li>
+            <li><b>Reorder:</b> press and hold a to-do, then drag it</li>
+            <li><b>Shortcuts:</b> type “Call mom tomorrow” or “Gym every Monday” and Ember sets the day or repeat for you</li>
+          </ul>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="art">
+          <div class="m-item m-high"><span class="m-check"></span><span>Pay rent</span><em>High</em></div>
+          <div class="m-item m-med"><span class="m-check"></span><span>Go for a run</span><em>Medium</em></div>
+          <div class="m-item m-low"><span class="m-check"></span><span>Call mom</span><em>Low</em></div>
+          <div class="m-item m-high m-guess"><span class="m-check"></span><span>Pay electric bill</span><em>Guessed: High</em></div>
+        </div>
+        <div class="slide-text">
+          <h2>Colors show priority</h2>
+          <ul>
+            <li><b class="c-high">Red</b> = high, <b class="c-med">yellow</b> = medium, <b class="c-low">blue</b> = low. Important things float to the top.</li>
+            <li>Tap a to-do to pick its color</li>
+            <li>Ember learns your habits and <b>guesses</b> colors for new to-dos. A lighter stripe means it's a guess; tap the to-do and Save to confirm it</li>
+          </ul>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="art">
+          <div class="m-switch"><span class="on">Today</span><span>Tomorrow</span></div>
+          <div class="m-item"><span class="m-check"></span><span>Read 10 pages</span><em>↻ Every day</em></div>
+          <div class="m-carry"><span>Laundry <em>Yesterday</em></span><i>Drop</i><i class="yes">Bring</i></div>
+        </div>
+        <div class="slide-text">
+          <h2>Today, tomorrow &amp; repeats</h2>
+          <ul>
+            <li>Switch to <b>Tomorrow</b> to plan ahead</li>
+            <li>Make a to-do <b>repeat</b>: every day, certain weekdays, every 2 weeks or monthly. It shows up by itself</li>
+            <li>Didn't finish something? In the evening, Ember offers to <b>move it to tomorrow</b>, and the next day it asks if you want to <b>bring along</b> anything left</li>
+          </ul>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="art">
+          <div class="m-streak">🔥 <b>12</b></div>
+          <div class="m-cal">
+            <i class="c"></i><i class="c"></i><i class="p"></i><i class="c"></i><i class="c"></i><i class="m"></i><i class="c"></i>
+            <i class="c"></i><i class="c"></i><i class="c"></i><i class="c"></i><i class="c"></i><i class="c"></i><i class="c"></i>
+          </div>
+        </div>
+        <div class="slide-text">
+          <h2>Keep the flame alive</h2>
+          <ul>
+            <li>Finish <b>everything</b> you planned and your 🔥 streak grows by one and the flame flares up</li>
+            <li>A day you skip or leave empty breaks the streak, so plan at least one thing each day</li>
+            <li>Every 7 days in a row earns a <b>❄️ freeze</b> that saves your streak if you miss a day</li>
+            <li>Need a break? Make tomorrow a <b>😴 rest day</b> (1 per week)</li>
+          </ul>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="art">
+          <div class="m-month">
+            <div class="m-month-head"><span>‹</span><b>October</b><span>›</span></div>
+            <div class="m-month-grid">
+              <i class="c"></i><i class="c"></i><i class="p"></i><i class="c"></i><i class="t"></i><i></i><i></i>
+              <i></i><i class="pl"></i><i></i><i></i><i class="pl sel"></i><i></i><i></i>
+            </div>
+          </div>
+          <div class="m-note"><span class="m-note-icon">🔔</span><span><b>Today: Call the dentist</b><em>6:45 AM</em></span></div>
+        </div>
+        <div class="slide-text">
+          <h2>Plan ahead &amp; get reminded</h2>
+          <ul>
+            <li><b>Tap the 🔥</b>, then any day to see what you did or plan ahead</li>
+            <li><b>Weekly and monthly</b> repeats remind you 8 PM the night before and 9 AM on the day</li>
+            <li>For anything else, tap it and pick your times under <b>Remind me</b></li>
+          </ul>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="art">
+          <div class="m-sug">
+            <div class="m-sug-row"><span>Learn 10 new words<em>For your goal: Learn Spanish</em></span><i>✕</i><i class="yes">✓</i></div>
+            <div class="m-sug-row"><span>Laundry<em>You added this on 3 of the last 4 Sundays</em></span><i>✕</i><i class="yes">✓</i></div>
+          </div>
+        </div>
+        <div class="slide-text">
+          <h2>Ideas when you want them</h2>
+          <ul>
+            <li>Next, you'll pick a few <b>hobbies and goals</b> (or skip)</li>
+            <li>Tap <b>💡</b> at the top for suggestions. <b>✓</b> adds one, <b>✕</b> skips it</li>
+            <li>After a week, Ember also learns what you usually add on which days</li>
+            <li>To-dos that help a goal show which goal they're for. If one keeps getting pushed back, Ember gives you a gentle nudge</li>
+          </ul>
+        </div>
+      </article>
+
+      <article class="slide">
+        <div class="art art-lock">
+          <div class="m-phone"><div class="m-lock">🔒</div></div>
+        </div>
+        <div class="slide-text">
+          <h2>Your list stays on your phone</h2>
+          <ul>
+            <li>No account, and your list isn't uploaded. Only you can see it</li>
+            <li>Deleting the app deletes your list, so save a backup now and then: <b>•••</b> → <b>Save a backup</b></li>
+            <li>Reminders only send each reminder's text and time, so they can reach you</li>
+          </ul>
+        </div>
+      </article>
+
+    </div>
+    <div class="tour-foot">
+      <div class="tour-dots" id="tour-dots"></div>
+      <div class="tour-btns">
+        <button class="btn ghost" id="tour-back">Back</button>
+        <button class="btn primary" id="tour-next">Next</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- First visit in Safari on iPhone: install first -->
+  <section id="install-page" class="tour install-page" role="dialog" aria-modal="true" aria-labelledby="install-title" hidden>
+    <div class="install-body">
+      <div class="art art-welcome small"><div class="m-glow"></div><svg class="m-flame" viewBox="128 70 256 366" aria-hidden="true"><path d="M256 70 C 290 140, 384 196, 384 302 C 384 376, 326 436, 256 436 C 186 436, 128 376, 128 302 C 128 240, 166 202, 196 174 C 198 220, 214 248, 240 258 C 228 190, 232 126, 256 70 Z" fill="#fff4e6"/><path d="M256 232 C 274 270, 320 296, 320 348 C 320 386, 292 412, 256 412 C 220 412, 192 386, 192 350 C 192 318, 212 298, 228 284 C 232 306, 240 318, 252 322 C 244 290, 246 262, 256 232 Z" fill="#ffb347"/></svg></div>
+      <h2 id="install-title">Add Ember to your Home Screen</h2>
+      <p class="lead">Ember is a to-do list that builds a daily streak. It works like a normal app once it's on your Home Screen, and it's free with no account.</p>
+      <ol class="steps">
+        <li><span class="step-n">1</span><span>Tap the <b>Share</b> button <span class="share-ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3v12M7.5 7.5 12 3l4.5 4.5M6 11H5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-1"/></svg></span> at the bottom of Safari</span></li>
+        <li><span class="step-n">2</span><span>Scroll down and tap <b>Add to Home Screen</b></span></li>
+        <li><span class="step-n">3</span><span>Tap <b>Add</b>, then open <b>Ember</b> from your Home Screen</span></li>
+      </ol>
+      <p class="muted small">Please open it from the Home Screen icon. A list started here in Safari won't carry over to the app.</p>
+    </div>
+    <div class="tour-foot">
+      <button class="link-btn" id="install-continue">Just look around in Safari</button>
+    </div>
+  </section>
+
+  <script src="suggest.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
