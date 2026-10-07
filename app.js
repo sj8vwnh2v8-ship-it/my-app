@@ -5,7 +5,7 @@
 //  All data is kept in this browser's local storage.
 // ============================================================
 
-const APP_VERSION = '1.18.0';
+const APP_VERSION = '1.18.1';
 // The reminder service's web address. Reminders are switched off (and hidden
 // in the app) while this is empty. To turn them on, install the service in
 // worker/ on Cloudflare and put its address here.
@@ -153,6 +153,42 @@ function addRepeatItemsFor(day) {
     changed = true;
   }
   return changed;
+}
+
+// Two repeats are the same if they have the same words and the same schedule
+// ("Daily" and "Weekly on all 7 days" count as the same).
+function scheduleKey(rule) {
+  if (rule.kind === 'monthly') return 'm' + (rule.dom || parseKey(rule.startDate).getDate());
+  const days = rule.kind === 'daily' ? [0, 1, 2, 3, 4, 5, 6] : [...rule.days].sort((a, b) => a - b);
+  const every = rule.kind === 'daily' ? 1 : rule.every || 1;
+  return days.length === 7 && every === 1 ? 'd' : `w${days.join()}/${every}`;
+}
+function sameRepeat(a, b) {
+  return normText(a.text) === normText(b.text) && scheduleKey(a) === scheduleKey(b);
+}
+
+// If the same repeat got set up twice (say "Gym every day" typed on two
+// different days), keep the first one and fold the other into it, so the
+// to-do only shows up once. Past days are left as they were.
+// Returns true if anything was merged.
+function mergeDuplicateRepeats() {
+  const kept = [];
+  let merged = false;
+  for (const rule of state.repeats) {
+    if (!rule.active) continue;
+    const keep = kept.find((k) => sameRepeat(k, rule));
+    if (!keep) { kept.push(rule); continue; }
+    rule.active = false;
+    merged = true;
+    for (const i of state.items) {
+      if (i.repeatId !== rule.id || i.deleted || i.date < currentDay) continue;
+      const twin = state.items.find((j) => j.repeatId === keep.id && j.date === i.date && !j.deleted);
+      if (!twin) i.repeatId = keep.id;
+      else if (i.done && !twin.done) { twin.deleted = true; i.repeatId = keep.id; }
+      else i.deleted = true;
+    }
+  }
+  return merged;
 }
 
 function describeRepeat(rule) {
@@ -421,11 +457,12 @@ function addFromInput(value) {
     const rule = { id: uid(), text: q.text, kind: q.repeat.kind, days: q.repeat.days || [], every: q.repeat.every || 1,
       dom: q.repeat.dom, priority: null, time: null, startDate: start, active: true };
     state.repeats.push(rule);
+    const already = mergeDuplicateRepeats();
     addRepeatItemsFor(currentDay);
     if (viewTomorrow) addRepeatItemsFor(addDays(currentDay, 1));
     save();
     render();
-    showToast(`Repeats: ${describeRepeat(rule)}`);
+    showToast(already ? `Already repeats: ${describeRepeat(rule)}` : `Repeats: ${describeRepeat(rule)}`);
     return;
   }
   const date = q.date || viewDay();
@@ -1061,6 +1098,7 @@ function saveEdit() {
     rule.active = false;
     item.repeatId = null;
   }
+  mergeDuplicateRepeats();
 
   save();
   closeSheets();
@@ -1906,7 +1944,12 @@ function renderDay() {
 
   if (ahead) {
     // Repeating to-dos aren't on that day's list yet; they show up when the day comes.
-    const repeats = state.repeats.filter((r) => repeatMatches(r, day) && !items.some((i) => i.repeatId === r.id));
+    const seen = new Set(items.map((i) => normText(i.text)));
+    const repeats = state.repeats.filter((r) => {
+      if (!repeatMatches(r, day) || items.some((i) => i.repeatId === r.id) || seen.has(normText(r.text))) return false;
+      seen.add(normText(r.text));
+      return true;
+    });
     for (const i of items) {
       const x = document.createElement('button');
       x.className = 'mini';
@@ -2164,6 +2207,7 @@ function runDailyCheck() {
     if (day < floor) day = floor;
     for (; day < currentDay; day = addDays(day, 1)) if (addRepeatItemsFor(day)) added = true;
   }
+  if (mergeDuplicateRepeats()) added = true;
   if (addRepeatItemsFor(currentDay)) added = true;
   if (viewTomorrow && addRepeatItemsFor(addDays(currentDay, 1))) added = true;
   // Let you know if a freeze kept your streak alive since you last looked.
