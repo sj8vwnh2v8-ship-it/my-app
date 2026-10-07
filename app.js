@@ -5,7 +5,7 @@
 //  All data is kept in this browser's local storage.
 // ============================================================
 
-const APP_VERSION = '1.22.0';
+const APP_VERSION = '1.23.0';
 // The reminder service's web address. Reminders are switched off (and hidden
 // in the app) while this is empty. To turn them on, install the service in
 // worker/ on Cloudflare and put its address here.
@@ -1121,6 +1121,15 @@ function saveEdit() {
   save();
   closeSheets();
   render();
+  if (item.remind && !item.repeatId && state.meta.remindersOn) confirmReminder(item);
+}
+
+// Right after you set a reminder, send it and say whether it's set.
+async function confirmReminder(item) {
+  const ok = await syncReminders();
+  const mine = upcomingReminders().filter((r) => r.id.startsWith(`i:${item.id}:`));
+  if (!mine.length) { showToast('That reminder time has already passed.'); return; }
+  showToast(ok ? `🔔 Reminder set for ${whenText(mine[mine.length - 1].at)}` : 'Couldn’t set the reminder. Check your internet and open Ember again.');
 }
 
 // ---------- Suggestions ----------
@@ -1440,22 +1449,45 @@ function scheduleReminderSync() {
   syncTimer = setTimeout(syncReminders, 1200);
 }
 
+// Sends the reminder list to the reminder service. Returns true once the
+// service has it. Remembers how it went, so Settings can show it.
 async function syncReminders() {
+  clearTimeout(syncTimer);
+  if (!state.meta.remindersOn || !REMINDER_API) return false;
   const sub = await currentSubscription();
-  if (!sub) return;
+  if (!sub) return false;
   const reminders = upcomingReminders();
   const json = JSON.stringify(reminders);
-  if (json === lastSyncedJson) return;
+  if (json === lastSyncedJson) return true;
   try {
+    // keepalive lets the request finish even if you close the app right away.
     const res = await fetch(REMINDER_API + '/reminders', {
       method: 'PUT',
+      keepalive: json.length < 60000,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ subscription: sub.toJSON(), reminders }),
     });
-    if (res.ok) lastSyncedJson = json;
+    if (!res.ok) throw new Error('status ' + res.status);
+    lastSyncedJson = json;
+    const next = reminders[0];
+    state.meta.reminderSync = { ok: true, at: Date.now(), count: reminders.length,
+      next: next ? { at: next.at, title: next.title } : null };
   } catch (e) {
     // Offline. We'll try again next time something changes or the app opens.
+    state.meta.reminderSync = { ...(state.meta.reminderSync || {}), ok: false, failedAt: Date.now() };
   }
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) { /* ignore */ }
+  if (!$('settings-sheet').hidden) renderReminderSettings();
+  return state.meta.reminderSync.ok;
+}
+
+function whenText(at) {
+  const d = new Date(at);
+  const day = dateKey(d);
+  const time = d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  if (day === currentDay) return `today at ${time}`;
+  if (day === addDays(currentDay, 1)) return `tomorrow at ${time}`;
+  return `${d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })} at ${time}`;
 }
 
 function urlB64ToBytes(str) {
@@ -1549,6 +1581,9 @@ async function checkReminderStatus() {
   if (!sub && swRegistration) {
     state.meta.remindersOn = false;
     save();
+    showToast('Reminders got turned off on this phone. Turn them back on in •••', 'Open', () => {
+      $('open-settings').click();
+    });
   } else {
     scheduleReminderSync();
   }
@@ -1573,6 +1608,31 @@ function renderReminderSettings() {
     off: 'Get reminded about to-dos that repeat weekly or monthly (8 PM the night before and 9 AM on the day), or any to-do you pick a time for.',
   }[st];
   $('remind-status').textContent = text;
+  // What the reminder service has right now, so you can check it's set.
+  const sync = state.meta.reminderSync;
+  const box = $('remind-sync');
+  box.hidden = st !== 'on';
+  if (st === 'on') {
+    const pending = upcomingReminders();
+    if (sync && sync.ok && JSON.stringify(pending) === lastSyncedJson) {
+      box.className = 'remind-sync ok';
+      box.textContent = pending.length
+        ? `✓ ${pending.length} reminder${pending.length === 1 ? '' : 's'} scheduled. Next: “${pending[0].title}” ${whenText(pending[0].at)}`
+        : '✓ Connected. No reminders coming up right now.';
+    } else if (sync && sync.ok === false) {
+      box.className = 'remind-sync bad';
+      box.textContent = 'Couldn’t reach the reminder service. Ember will keep trying when you have internet.';
+    } else {
+      box.className = 'remind-sync';
+      box.textContent = 'Checking…';
+      syncReminders().then((ok) => {
+        if (!ok && box.textContent === 'Checking…') {
+          box.className = 'remind-sync bad';
+          box.textContent = 'Not connected. Try “Turn off reminders”, then turn them on again.';
+        }
+      });
+    }
+  }
   $('remind-on').hidden = st !== 'off';
   $('remind-test').hidden = st !== 'on';
   $('remind-off').hidden = st !== 'on';
@@ -2495,6 +2555,7 @@ $('remind-section').hidden = !REMINDER_API;
 // Re-check when you come back to the app (it may be a new day).
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') { runDailyCheck(); checkReminderStatus(); }
+  else if (state.meta.remindersOn) syncReminders(); // about to close: send any reminder change now
 });
 setInterval(() => {
   if (dateKey() !== currentDay) runDailyCheck();
