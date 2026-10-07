@@ -5,7 +5,7 @@
 //  All data is kept in this browser's local storage.
 // ============================================================
 
-const APP_VERSION = '1.19.0';
+const APP_VERSION = '1.20.0';
 // The reminder service's web address. Reminders are switched off (and hidden
 // in the app) while this is empty. To turn them on, install the service in
 // worker/ on Cloudflare and put its address here.
@@ -571,6 +571,7 @@ function render() {
   renderWrapUp();
   renderRestBox();
   renderList();
+  if (dayOpen) renderDay();
 }
 
 // ---------- Evening wrap-up ----------
@@ -1926,6 +1927,7 @@ function renderCalendar(byDay = dayStats(), info = streakInfo(byDay)) {
 // Today and tomorrow just jump to the main list, which already does it all.
 
 let dayOpen = null;
+let returnToDay = null; // the calendar day to go back to after editing
 
 function openDay(day) {
   if (day === currentDay || day === addDays(currentDay, 1)) {
@@ -1945,11 +1947,12 @@ function dayRow(text, opts = {}) {
   const li = document.createElement('li');
   if (opts.cls) li.className = opts.cls;
   const mark = document.createElement('span');
-  mark.className = 'day-mark';
+  mark.className = 'day-mark' + (opts.priority ? ` p-${opts.priority}` : '');
   mark.textContent = opts.mark || '';
-  const body = document.createElement('span');
-  body.className = 'carry-text';
+  const body = document.createElement(opts.onTap ? 'button' : 'span');
+  body.className = 'carry-text' + (opts.onTap ? ' day-tap' : '');
   body.textContent = text;
+  if (opts.onTap) { body.type = 'button'; body.addEventListener('click', opts.onTap); }
   if (opts.note) {
     const note = document.createElement('span');
     note.className = 'carry-date';
@@ -1998,11 +2001,23 @@ function renderDay() {
         render();
         showToast('Removed', 'Undo', () => { i.deleted = false; save(); renderDay(); render(); });
       });
-      list.appendChild(dayRow(i.text, { mark: '○', button: x, note: i.repeatId ? '↻ Repeats' : '' }));
+      const note = [];
+      if (i.priority) note.push(PRIORITY_LABEL[i.priority]);
+      if (i.repeatId) note.push('↻ Repeats');
+      if (i.remind && !i.repeatId) {
+        const t = [];
+        if (i.remind.eve) t.push('night before ' + formatTime(i.remind.eve));
+        if (i.remind.am) t.push(formatTime(i.remind.am));
+        note.push('🔔 ' + t.join(' & '));
+      }
+      list.appendChild(dayRow(i.text, {
+        mark: '○', button: x, note: note.join(' · '), priority: i.priority,
+        onTap: () => editFromDay(i.id),
+      }));
     }
     for (const r of repeats) list.appendChild(dayRow(r.text, { mark: '↻', cls: 'repeat', note: describeRepeat(r) }));
     const n = items.length + repeats.length;
-    sub = n ? `${n} planned` : 'Nothing planned yet. Add something below.';
+    sub = n ? `${n} planned · tap one to set priority or a reminder` : 'Nothing planned yet. Add something below.';
     if (isRestDay(day)) sub = '😴 Rest day. ' + sub;
   } else if (day < first) {
     sub = 'This was before you started using Ember.';
@@ -2024,6 +2039,13 @@ function renderDay() {
     else sub = `${done.length} of ${items.length} done` + (info.frozen.has(day) ? ' · ❄️ saved by a freeze' : '');
   }
   $('day-sub').textContent = sub;
+}
+
+function editFromDay(id) {
+  returnToDay = dayOpen;
+  $('day-sheet').hidden = true;
+  dayOpen = null;
+  openEdit(id);
 }
 
 function addForDay() {
@@ -2211,6 +2233,14 @@ function closeSheets() {
   dayOpen = null;
   editing = null;
   if (document.activeElement) document.activeElement.blur();
+  // Editing a to-do from a day in the calendar goes back to that day.
+  const back = returnToDay;
+  returnToDay = null;
+  if (back) {
+    dayOpen = back;
+    renderDay();
+    openSheet('day-sheet');
+  }
 }
 
 let toastTimer = null;

@@ -797,3 +797,9 @@ button.pressed, .chip.pressed {
   padding: 7px 10px; color: var(--text); font: inherit; -webkit-appearance: none; appearance: none;
 }
 .remind-row input[type="time"]:disabled { opacity: 0.4; }
+.day-tap {
+  background: none; border: 0; padding: 0; text-align: left; font: inherit; color: inherit; cursor: pointer;
+}
+.day-mark.p-high { color: var(--high); }
+.day-mark.p-med { color: var(--med); }
+.day-mark.p-low { color: var(--low); }
