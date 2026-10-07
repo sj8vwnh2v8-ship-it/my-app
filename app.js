@@ -5,7 +5,7 @@
 //  All data is kept in this browser's local storage.
 // ============================================================
 
-const APP_VERSION = '1.18.1';
+const APP_VERSION = '1.19.0';
 // The reminder service's web address. Reminders are switched off (and hidden
 // in the app) while this is empty. To turn them on, install the service in
 // worker/ on Cloudflare and put its address here.
@@ -874,7 +874,12 @@ function renderList({ animate = false } = {}) {
     body.appendChild(text);
 
     const meta = [];
-    if (item.time) meta.push('⏰ ' + formatTime(item.time));
+    if (item.remind && !item.repeatId && !item.done) {
+      const times = [];
+      if (item.remind.eve) times.push('night before ' + formatTime(item.remind.eve));
+      if (item.remind.am) times.push(formatTime(item.remind.am));
+      meta.push('🔔 ' + times.join(' & '));
+    }
     if (item.priority) meta.push((guessed ? 'Guessed: ' : '') + PRIORITY_LABEL[item.priority]);
     if (item.repeatId) {
       const rule = state.repeats.find((r) => r.id === item.repeatId);
@@ -1041,6 +1046,7 @@ function renderDays() {
   line.textContent = st === 'on'
     ? '🔔 You’ll get a reminder at 8 PM the night before and 9 AM on the day.'
     : '🔔 Turn on reminders in ••• to get a heads-up the night before and the morning of.';
+  renderTimeField();
 }
 
 function openEdit(id) {
@@ -1056,7 +1062,11 @@ function openEdit(id) {
     dom: rule && rule.kind === 'monthly' ? (rule.dom || parseKey(rule.startDate).getDate()) : parseKey(item.date).getDate(),
   };
   $('edit-text').value = item.text;
-  $('edit-time').value = item.time || '';
+  const r = item.remind || {};
+  $('remind-eve-on').checked = !!r.eve;
+  $('remind-eve-time').value = r.eve || REMIND_EVENING;
+  $('remind-am-on').checked = !!r.am;
+  $('remind-am-time').value = r.am || REMIND_MORNING;
   renderTimeField();
   setSeg('edit-priority', editing.priority);
   setSeg('edit-repeat', editing.repeatKind);
@@ -1076,7 +1086,13 @@ function saveEdit() {
   item.priority = editing.priority || null;
   // Saving the panel counts as you choosing the color (even if it was guessed).
   item.prioritySource = item.priority ? 'user' : null;
-  item.time = $('edit-time').value || null;
+  // Your own reminder times, for to-dos that don't repeat.
+  if (!editing.repeatKind) {
+    const eve = $('remind-eve-on').checked ? $('remind-eve-time').value || REMIND_EVENING : null;
+    const am = $('remind-am-on').checked ? $('remind-am-time').value || REMIND_MORNING : null;
+    if (eve || am) item.remind = { eve, am };
+    else delete item.remind;
+  }
 
   let rule = item.repeatId ? state.repeats.find((r) => r.id === item.repeatId) : null;
   if (editing.repeatKind) {
@@ -1086,6 +1102,7 @@ function saveEdit() {
       state.repeats.push(rule);
       item.repeatId = rule.id;
     }
+    delete item.remind; // repeating to-dos use the standard reminder times
     rule.text = text;
     rule.priority = item.priority;
     rule.time = item.time;
@@ -1390,6 +1407,20 @@ function upcomingReminders() {
       if (morning > now) out.push({ id: `r:${rule.id}:${day}:am`, at: morning, title: `Today: ${rule.text}`, body: 'Tap to open your list.' });
     }
   }
+  // To-dos that don't repeat, at the times you picked.
+  for (const item of state.items) {
+    if (!item.remind || item.repeatId || item.done || item.deleted || item.date < currentDay) continue;
+    if (item.date > addDays(currentDay, 30)) continue;
+    const weekday = parseKey(item.date).toLocaleDateString(undefined, { weekday: 'long' });
+    if (item.remind.eve) {
+      const at = atTime(addDays(item.date, -1), item.remind.eve);
+      if (at > now) out.push({ id: `i:${item.id}:eve`, at, title: `Tomorrow: ${item.text}`, body: `Planned for ${weekday}.` });
+    }
+    if (item.remind.am) {
+      const at = atTime(item.date, item.remind.am);
+      if (at > now) out.push({ id: `i:${item.id}:am`, at, title: `Today: ${item.text}`, body: 'Tap to open your list.' });
+    }
+  }
   return out.sort((a, b) => a.at - b.at).slice(0, 250);
 }
 
@@ -1537,8 +1568,8 @@ function renderReminderSettings() {
     'not-installed': 'To get reminders, open this app from its home-screen icon (not from Safari).',
     unsupported: 'This phone can’t show reminders from web apps. iPhones need iOS 16.4 or newer.',
     blocked: 'Notifications are blocked for this app. Turn them on in iPhone Settings → Notifications → Ember.',
-    on: 'Reminders are on. To-dos that repeat weekly or monthly remind you at 8 PM the night before and 9 AM on the day.',
-    off: 'Get reminded about to-dos that repeat weekly or monthly: 8 PM the night before and 9 AM on the day.',
+    on: 'Reminders are on. To-dos that repeat weekly or monthly remind you at 8 PM the night before and 9 AM on the day. For a one-time to-do, tap it and pick your own times.',
+    off: 'Get reminded about to-dos that repeat weekly or monthly (8 PM the night before and 9 AM on the day), or any to-do you pick a time for.',
   }[st];
   $('remind-status').textContent = text;
   $('remind-on').hidden = st !== 'off';
@@ -1546,11 +1577,16 @@ function renderReminderSettings() {
   $('remind-off').hidden = st !== 'on';
 }
 
+// The "Remind me" part of the edit panel: only for to-dos that don't repeat.
 function renderTimeField() {
-  const hasTime = !!$('edit-time').value;
-  $('edit-time-clear').hidden = !hasTime;
+  const section = $('time-section');
+  section.hidden = !REMINDER_API || !editing || !!editing.repeatKind;
+  if (section.hidden) return;
+  const eveOn = $('remind-eve-on').checked, amOn = $('remind-am-on').checked;
+  $('remind-eve-time').disabled = !eveOn;
+  $('remind-am-time').disabled = !amOn;
   const st = reminderState();
-  $('remind-note').hidden = !(hasTime && st !== 'on' && st !== 'not-setup');
+  $('remind-note').hidden = !((eveOn || amOn) && st !== 'on' && st !== 'not-setup');
   if (st === 'off') {
     $('remind-note').firstElementChild.textContent = 'Reminders are off on this phone.';
     $('remind-note-on').hidden = false;
@@ -2345,9 +2381,8 @@ $('remind-on').addEventListener('click', enableReminders);
 $('remind-note-on').addEventListener('click', enableReminders);
 $('remind-off').addEventListener('click', disableReminders);
 $('remind-test').addEventListener('click', sendTestNotification);
-$('edit-time').addEventListener('input', renderTimeField);
-$('edit-time').addEventListener('change', renderTimeField);
-$('edit-time-clear').addEventListener('click', () => { $('edit-time').value = ''; renderTimeField(); });
+$('remind-eve-on').addEventListener('change', renderTimeField);
+$('remind-am-on').addEventListener('change', renderTimeField);
 $('edit-profile').addEventListener('click', () => { closeSheets(); openOnboarding(); });
 $('open-suggest').addEventListener('click', () => {
   if (viewTomorrow) { viewTomorrow = false; suggestOpen = null; render(); }
@@ -2403,7 +2438,6 @@ $('erase-btn').addEventListener('click', () => {
   startFirstRun();
 });
 $('version').textContent = APP_VERSION;
-$('time-section').hidden = true; // one-time to-dos don't send reminders
 $('remind-section').hidden = !REMINDER_API;
 
 // Re-check when you come back to the app (it may be a new day).

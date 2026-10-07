@@ -225,16 +225,20 @@
     <p id="repeat-note" class="muted small" hidden></p>
     <p id="remind-line" class="small remind-line" hidden></p>
 
-    <div id="time-section">
-    <label class="field-label" for="edit-time">Remind me at</label>
-    <div class="time-row">
-      <input id="edit-time" type="time">
-      <button type="button" class="link-btn" id="edit-time-clear" hidden>No reminder</button>
-    </div>
-    <div id="remind-note" class="remind-note" hidden>
-      <span>Reminders are off on this phone.</span>
-      <button type="button" class="link-btn" id="remind-note-on">Turn on</button>
-    </div>
+    <div id="time-section" hidden>
+      <span class="field-label">Remind me</span>
+      <div class="remind-row">
+        <label class="remind-toggle"><input type="checkbox" id="remind-eve-on" switch><span>🌙 Night before</span></label>
+        <input id="remind-eve-time" type="time" value="20:00" aria-label="Night before reminder time">
+      </div>
+      <div class="remind-row">
+        <label class="remind-toggle"><input type="checkbox" id="remind-am-on" switch><span>☀️ Day of</span></label>
+        <input id="remind-am-time" type="time" value="09:00" aria-label="Day of reminder time">
+      </div>
+      <div id="remind-note" class="remind-note" hidden>
+        <span>Reminders are off on this phone.</span>
+        <button type="button" class="link-btn" id="remind-note-on">Turn on</button>
+      </div>
     </div>
 
     <div class="sheet-actions">
@@ -365,7 +369,7 @@
     <div class="milestone-card remind-card">
       <div class="bell" aria-hidden="true">🔔</div>
       <h2 id="remind-prompt-title">Want reminders?</h2>
-      <p>Ember can remind you about to-dos that repeat weekly or monthly, like <b>“Laundry every Thursday”</b>, at <b>8 PM the night before</b> and <b>9 AM on the day</b>.</p>
+      <p>Ember can remind you about to-dos that repeat weekly or monthly, like <b>“Laundry every Thursday”</b>, at <b>8 PM the night before</b> and <b>9 AM on the day</b>. For one-time to-dos, you pick the time.</p>
       <button class="btn primary" id="remind-prompt-yes">Turn on reminders</button>
       <button class="link-btn" id="remind-prompt-no">Not now</button>
       <p class="small muted fine">You can change this anytime in •••.</p>

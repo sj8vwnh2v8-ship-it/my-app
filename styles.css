@@ -786,3 +786,14 @@ button.pressed, .chip.pressed {
 .day-add { display: flex; gap: 8px; margin-top: 8px; }
 .day-add input[type="text"] { flex: 1; min-width: 0; }
 .cal span:empty { background: transparent; }
+
+/* ---------- Remind me (one-time to-dos) ---------- */
+.remind-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 4px 0; }
+.remind-toggle { display: flex; align-items: center; gap: 10px; font-size: 15px; flex: 1; min-width: 0; }
+.remind-toggle input { width: 22px; height: 22px; accent-color: var(--accent); flex: none; margin: 0; }
+.remind-row input[type="time"] {
+  width: 140px; flex: none; min-height: 40px;
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px;
+  padding: 7px 10px; color: var(--text); font: inherit; -webkit-appearance: none; appearance: none;
+}
+.remind-row input[type="time"]:disabled { opacity: 0.4; }
