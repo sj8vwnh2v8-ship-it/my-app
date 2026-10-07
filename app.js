@@ -5,7 +5,7 @@
 //  All data is kept in this browser's local storage.
 // ============================================================
 
-const APP_VERSION = '1.21.0';
+const APP_VERSION = '1.22.0';
 // The reminder service's web address. Reminders are switched off (and hidden
 // in the app) while this is empty. To turn them on, install the service in
 // worker/ on Cloudflare and put its address here.
@@ -1822,6 +1822,27 @@ function renderRecap() {
   }));
 }
 
+// ---------- Share the app with friends ----------
+// Only the link is shared. Your friend starts with their own empty list.
+
+const APP_URL = 'https://sj8vwnh2v8-ship-it.github.io/my-app/';
+
+async function shareApp() {
+  const text = 'I’ve been using Ember to plan my days and keep a streak going. ' +
+    'Open this on your iPhone in Safari, then tap Share → Add to Home Screen:';
+  try {
+    if (navigator.share) { await navigator.share({ title: 'Ember', text, url: APP_URL }); return; }
+  } catch (e) {
+    if (e && e.name === 'AbortError') return; // you closed the share menu
+  }
+  try {
+    await navigator.clipboard.writeText(`${text} ${APP_URL}`);
+    showToast('Link copied. Paste it in a text to a friend.');
+  } catch (e) {
+    showToast('Couldn’t share from here. The link is ' + APP_URL);
+  }
+}
+
 // ---------- Share a list ----------
 
 function listAsText() {
@@ -2436,6 +2457,7 @@ $('tour-next').addEventListener('click', () => {
 $('tour-back').addEventListener('click', () => goToSlide(Math.max(0, tourIndex() - 1)));
 $('tour-skip').addEventListener('click', finishTour);
 $('replay-tour').addEventListener('click', () => { closeSheets(); openTour('replay'); });
+$('share-app').addEventListener('click', shareApp);
 $('install-continue').addEventListener('click', () => { $('install-page').hidden = true; openTour('first'); });
 window.addEventListener('resize', () => { if (!$('tour').hidden) goToSlide(tourIndex()); });
 
