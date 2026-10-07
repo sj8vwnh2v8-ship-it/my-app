@@ -758,3 +758,31 @@ button.pressed, .chip.pressed {
   .dayend.playing .dayend-glow, .dayend.playing .dayend-flame, .dayend.playing .flame-outer, .dayend.playing .flame-inner,
   .dayend.counted .dayend-num, .dayend.playing .dayend-title, .dayend.playing .dayend-unit, .dayend.playing .dayend-freeze { animation: none; }
 }
+
+/* ---------- Calendar months + one day ---------- */
+.cal-nav { display: flex; align-items: center; justify-content: space-between; margin: 18px 0 6px; }
+.cal-nav h3 { margin: 0; }
+.cal-arrow {
+  width: 36px; height: 36px; border-radius: 50%; border: 0;
+  background: var(--surface-2); color: var(--text); font-size: 22px; line-height: 1; padding: 0 0 2px;
+}
+.cal-arrow:disabled { opacity: 0.3; }
+.cal button {
+  aspect-ratio: 1; border-radius: 9px; display: grid; place-items: center; border: 0; padding: 0;
+  font: inherit; font-size: 13px; font-weight: 600; background: var(--surface-2); color: var(--muted);
+  position: relative;
+}
+.cal button.future { opacity: 0.7; }
+.cal button.planned::after {
+  content: ''; position: absolute; bottom: 4px; left: 50%; width: 5px; height: 5px;
+  margin-left: -2.5px; border-radius: 50%; background: var(--accent);
+}
+.cal-tip { font-size: 13px; color: var(--muted); margin: 2px 0 0; }
+.day-sub { margin: 4px 0 10px; }
+.day-list li { align-items: flex-start; }
+.day-mark { width: 18px; flex: none; text-align: center; color: var(--muted); font-weight: 700; }
+.day-list .did .day-mark { color: var(--accent); }
+.day-list .didnt .carry-text, .day-list .moved .carry-text, .day-list .repeat .carry-text { color: var(--muted); }
+.day-add { display: flex; gap: 8px; margin-top: 8px; }
+.day-add input[type="text"] { flex: 1; min-width: 0; }
+.cal span:empty { background: transparent; }

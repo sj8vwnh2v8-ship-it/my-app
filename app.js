@@ -5,7 +5,7 @@
 //  All data is kept in this browser's local storage.
 // ============================================================
 
-const APP_VERSION = '1.17.0';
+const APP_VERSION = '1.18.0';
 // The reminder service's web address. Reminders are switched off (and hidden
 // in the app) while this is empty. To turn them on, install the service in
 // worker/ on Cloudflare and put its address here.
@@ -571,35 +571,48 @@ function renderWrapUp() {
     const text = document.createElement('span');
     text.className = 'carry-text';
     text.textContent = item.text;
-    if (item.repeatId) {
-      const note = document.createElement('span');
-      note.className = 'carry-date';
-      note.textContent = '↻ Comes back tomorrow';
-      text.appendChild(note);
-    }
     const btn = document.createElement('button');
     btn.className = 'mini yes';
-    btn.textContent = item.repeatId ? 'Skip' : 'Tomorrow';
+    btn.textContent = 'Tomorrow';
     btn.addEventListener('click', () => {
       const undo = clearForTonight([item]);
-      afterWrapUp(item.repeatId ? 'Skipped for today' : 'Moved to tomorrow', undo);
+      afterWrapUp('Moved to tomorrow', undo);
     });
     li.append(text, btn);
     list.appendChild(li);
   }
 }
 
-// Moves one-time to-dos to tomorrow and skips today's repeating ones.
+// Moves what's left to tomorrow. A repeating to-do that already comes back
+// tomorrow (like an every-day one) just skips today's copy; any other
+// repeating one (say, laundry every Thursday) skips today's copy and gets a
+// one-time copy on tomorrow's list.
 // Returns a function that undoes it.
 function clearForTonight(items) {
   const tomorrow = addDays(currentDay, 1);
   const before = items.map((i) => ({ item: i, date: i.date, deleted: i.deleted, pushes: i.pushes }));
+  const copies = [];
   for (const i of items) {
-    if (i.repeatId) i.deleted = true;
-    else { i.date = tomorrow; i.movedFrom = currentDay; i.pushes = (i.pushes || 0) + 1; }
+    if (i.repeatId) {
+      i.deleted = true;
+      const rule = state.repeats.find((r) => r.id === i.repeatId);
+      if (rule && repeatMatches(rule, tomorrow)) continue;
+      const copy = {
+        id: uid(), text: i.text, date: tomorrow, done: false, doneAt: null,
+        priority: i.priority || null, prioritySource: i.prioritySource || null,
+        repeatId: null, fromRepeat: i.repeatId, movedFrom: currentDay,
+        pushes: (i.pushes || 0) + 1, createdAt: Date.now(),
+      };
+      placeInManualOrder(copy);
+      state.items.push(copy);
+      copies.push(copy);
+    } else {
+      i.date = tomorrow; i.movedFrom = currentDay; i.pushes = (i.pushes || 0) + 1;
+    }
   }
   save();
   return () => {
+    state.items = state.items.filter((i) => !copies.includes(i));
     for (const b of before) {
       b.item.date = b.date; b.item.deleted = b.deleted; b.item.pushes = b.pushes;
       delete b.item.movedFrom;
@@ -1776,32 +1789,171 @@ function renderProgress() {
   }
   $('stat-week').textContent = total ? `${Math.round((done / total) * 100)}%` : '–';
 
+  renderCalendar(byDay, info);
+}
+
+// ----- Calendar: one month at a time, tap any day -----
+
+let calMonth = null; // first day of the month on screen, e.g. '2026-10-01'
+const CAL_MONTHS_AHEAD = 12;
+
+function monthStart(day) {
+  return day.slice(0, 8) + '01';
+}
+function shiftMonth(key, n) {
+  const d = parseKey(key);
+  return dateKey(new Date(d.getFullYear(), d.getMonth() + n, 1));
+}
+
+function calStatus(day, byDay, info) {
+  const first = state.meta.firstUseDate || currentDay;
+  if (day > currentDay) return isRestDay(day) ? 'rest future-rest' : 'future';
+  if (day < first) return 'before';
+  if (isRestDay(day)) return 'rest';
+  if (day === currentDay) return dayStatus(day, byDay) === 'complete' ? 'complete' : 'pending';
+  if (info.frozen.has(day)) return 'frozen';
+  return dayStatus(day, byDay) === 'empty' ? 'missed' : dayStatus(day, byDay);
+}
+
+function renderCalendar(byDay = dayStats(), info = streakInfo(byDay)) {
+  if (!calMonth) calMonth = monthStart(currentDay);
+  const firstMonth = monthStart(state.meta.firstUseDate || currentDay);
+  const lastMonth = shiftMonth(monthStart(currentDay), CAL_MONTHS_AHEAD);
+  const m = parseKey(calMonth);
+  $('cal-title').textContent = m.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+  $('cal-prev').disabled = calMonth <= firstMonth;
+  $('cal-next').disabled = calMonth >= lastMonth;
+
   // Weekday letters, starting on Sunday like the iPhone calendar.
   const head = document.querySelector('.cal-head');
   head.replaceChildren(...DAY_LETTERS.map((l) => { const s = document.createElement('span'); s.textContent = l; return s; }));
 
   const cal = $('cal');
   cal.replaceChildren();
-  const thisSunday = addDays(currentDay, -parseKey(currentDay).getDay());
-  const start = addDays(thisSunday, -28);
-  const first = state.meta.firstUseDate || currentDay;
-  for (let k = 0; k < 35; k++) {
-    const day = addDays(start, k);
-    const cell = document.createElement('span');
-    cell.textContent = parseKey(day).getDate();
-    let cls;
-    if (day > currentDay) cls = isRestDay(day) ? 'rest' : 'future';
-    else if (day < first) cls = 'before';
-    else if (isRestDay(day)) cls = 'rest';
-    else if (day === currentDay) cls = dayStatus(day, byDay) === 'complete' ? 'complete' : 'pending';
-    else if (info.frozen.has(day)) cls = 'frozen';
-    else cls = dayStatus(day, byDay) === 'empty' ? 'missed' : dayStatus(day, byDay);
-    if (cls === 'rest' && day > currentDay) cls = 'rest future-rest';
+  for (let k = 0; k < m.getDay(); k++) cal.appendChild(document.createElement('span'));
+  const days = new Date(m.getFullYear(), m.getMonth() + 1, 0).getDate();
+  for (let n = 1; n <= days; n++) {
+    const day = dateKey(new Date(m.getFullYear(), m.getMonth(), n));
+    const cell = document.createElement('button');
+    cell.type = 'button';
+    cell.textContent = n;
+    const cls = calStatus(day, byDay, info);
     cell.className = cls + (day === currentDay ? ' today' : '');
+    if (day > currentDay && itemsForDay(day).some((i) => !i.done)) cell.classList.add('planned');
     const label = { complete: 'finished everything', partial: 'partly done', missed: 'missed', pending: 'in progress', frozen: 'saved by a freeze', rest: 'rest day', 'rest future-rest': 'rest day', future: '', before: '' }[cls];
     cell.setAttribute('aria-label', parseKey(day).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + (label ? `: ${label}` : ''));
+    cell.addEventListener('click', () => openDay(day));
     cal.appendChild(cell);
   }
+}
+
+// ----- One day from the calendar -----
+// Past days show what got done. Days ahead let you plan things in advance.
+// Today and tomorrow just jump to the main list, which already does it all.
+
+let dayOpen = null;
+
+function openDay(day) {
+  if (day === currentDay || day === addDays(currentDay, 1)) {
+    closeSheets();
+    setView(day !== currentDay);
+    render();
+    return;
+  }
+  dayOpen = day;
+  $('progress-sheet').hidden = true;
+  $('day-input').value = '';
+  renderDay();
+  openSheet('day-sheet');
+}
+
+function dayRow(text, opts = {}) {
+  const li = document.createElement('li');
+  if (opts.cls) li.className = opts.cls;
+  const mark = document.createElement('span');
+  mark.className = 'day-mark';
+  mark.textContent = opts.mark || '';
+  const body = document.createElement('span');
+  body.className = 'carry-text';
+  body.textContent = text;
+  if (opts.note) {
+    const note = document.createElement('span');
+    note.className = 'carry-date';
+    note.textContent = opts.note;
+    body.appendChild(note);
+  }
+  li.append(mark, body);
+  if (opts.button) li.appendChild(opts.button);
+  return li;
+}
+
+function shortDay(day) {
+  return parseKey(day).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+}
+
+function renderDay() {
+  const day = dayOpen;
+  if (!day) return;
+  const ahead = day > currentDay;
+  const first = state.meta.firstUseDate || currentDay;
+  $('day-title').textContent = parseKey(day).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+  $('day-add').hidden = !ahead;
+
+  const items = sortedItems(itemsForDay(day));
+  const list = $('day-list');
+  list.replaceChildren();
+  let sub;
+
+  if (ahead) {
+    // Repeating to-dos aren't on that day's list yet; they show up when the day comes.
+    const repeats = state.repeats.filter((r) => repeatMatches(r, day) && !items.some((i) => i.repeatId === r.id));
+    for (const i of items) {
+      const x = document.createElement('button');
+      x.className = 'mini';
+      x.textContent = 'Remove';
+      x.setAttribute('aria-label', `Remove ${i.text}`);
+      x.addEventListener('click', () => {
+        i.deleted = true;
+        save();
+        renderDay();
+        render();
+        showToast('Removed', 'Undo', () => { i.deleted = false; save(); renderDay(); render(); });
+      });
+      list.appendChild(dayRow(i.text, { mark: '○', button: x, note: i.repeatId ? '↻ Repeats' : '' }));
+    }
+    for (const r of repeats) list.appendChild(dayRow(r.text, { mark: '↻', cls: 'repeat', note: describeRepeat(r) }));
+    const n = items.length + repeats.length;
+    sub = n ? `${n} planned` : 'Nothing planned yet. Add something below.';
+    if (isRestDay(day)) sub = '😴 Rest day. ' + sub;
+  } else if (day < first) {
+    sub = 'This was before you started using Ember.';
+  } else {
+    const done = items.filter((i) => i.done);
+    for (const i of items) {
+      list.appendChild(dayRow(i.text, {
+        mark: i.done ? '✓' : '○',
+        cls: i.done ? 'did' : 'didnt',
+        note: i.done && i.doneAt ? 'Done ' + new Date(i.doneAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) : '',
+      }));
+    }
+    const moved = state.items.filter((i) => !i.deleted && i.movedFrom === day && i.date !== day);
+    for (const i of moved) list.appendChild(dayRow(i.text, { mark: '→', cls: 'moved', note: `Moved to ${shortDay(i.date)}` }));
+    const info = streakInfo();
+    if (isRestDay(day)) sub = '😴 Rest day';
+    else if (!items.length) sub = info.frozen.has(day) ? '❄️ Nothing done, but a freeze saved your streak' : 'Nothing was planned';
+    else if (done.length === items.length) sub = `Finished everything (${items.length})`;
+    else sub = `${done.length} of ${items.length} done` + (info.frozen.has(day) ? ' · ❄️ saved by a freeze' : '');
+  }
+  $('day-sub').textContent = sub;
+}
+
+function addForDay() {
+  const text = $('day-input').value.trim();
+  if (!text || !dayOpen) return;
+  addItem(text, { date: dayOpen });
+  $('day-input').value = '';
+  renderDay();
+  showToast(`Added for ${shortDay(dayOpen)}`);
 }
 
 // ---------- Welcome tour ----------
@@ -1976,6 +2128,8 @@ function closeSheets() {
   $('edit-sheet').hidden = true;
   $('settings-sheet').hidden = true;
   $('progress-sheet').hidden = true;
+  $('day-sheet').hidden = true;
+  dayOpen = null;
   editing = null;
   if (document.activeElement) document.activeElement.blur();
 }
@@ -2117,8 +2271,18 @@ $('wrapup-all').addEventListener('click', () => {
   afterWrapUp(`Moved ${items.length} to tomorrow`, undo);
 });
 $('view-tomorrow').addEventListener('click', () => setView(true));
-$('streak').addEventListener('click', () => { renderProgress(); openSheet('progress-sheet'); });
+$('streak').addEventListener('click', () => { calMonth = null; renderProgress(); openSheet('progress-sheet'); });
 $('progress-close').addEventListener('click', closeSheets);
+$('cal-prev').addEventListener('click', () => { calMonth = shiftMonth(calMonth, -1); renderCalendar(); });
+$('cal-next').addEventListener('click', () => { calMonth = shiftMonth(calMonth, 1); renderCalendar(); });
+$('day-close').addEventListener('click', closeSheets);
+$('day-back').addEventListener('click', () => {
+  $('day-sheet').hidden = true;
+  dayOpen = null;
+  renderProgress();
+  $('progress-sheet').hidden = false;
+});
+$('day-add').addEventListener('submit', (e) => { e.preventDefault(); addForDay(); });
 $('how-streaks').addEventListener('click', () => {
   const open = $('how-list').hidden;
   $('how-list').hidden = !open;

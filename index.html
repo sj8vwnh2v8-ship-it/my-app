@@ -310,7 +310,11 @@
       <div class="stat"><span class="stat-num" id="stat-week">–</span><span class="stat-label">Done this week</span></div>
       <div class="stat"><span class="stat-num" id="stat-freezes">0</span><span class="stat-label">❄️ Freezes saved</span></div>
     </div>
-    <h3>Last 5 weeks</h3>
+    <div class="cal-nav">
+      <button type="button" class="cal-arrow" id="cal-prev" aria-label="Previous month">‹</button>
+      <h3 id="cal-title"></h3>
+      <button type="button" class="cal-arrow" id="cal-next" aria-label="Next month">›</button>
+    </div>
     <div class="cal-head" aria-hidden="true"></div>
     <div class="cal" id="cal"></div>
     <div class="legend">
@@ -320,6 +324,7 @@
       <span><i class="sw frozen"></i>Freeze</span>
       <span><i class="sw rest"></i>Rest</span>
     </div>
+    <p class="cal-tip">Tap a day to see what you did, or plan ahead.</p>
     <button class="link-btn how-link" id="how-streaks" aria-expanded="false">How streaks work</button>
     <ul class="how-list" id="how-list" hidden>
       <li>Finish everything you planned → +1 day</li>
@@ -327,6 +332,21 @@
       <li>❄️ Every 7 days in a row earns a freeze (max 2). It's used automatically if you miss a day</li>
       <li>😴 1 rest day a week, set from <b>Tomorrow</b></li>
     </ul>
+  </section>
+
+  <!-- One day, opened from the calendar -->
+  <section id="day-sheet" class="sheet" role="dialog" aria-modal="true" aria-labelledby="day-title" hidden>
+    <div class="sheet-head">
+      <button class="link-btn" id="day-back">‹ Calendar</button>
+      <button class="link-btn" id="day-close">Done</button>
+    </div>
+    <h2 id="day-title"></h2>
+    <p class="muted day-sub" id="day-sub"></p>
+    <ul class="carry-list day-list" id="day-list"></ul>
+    <form class="day-add" id="day-add" autocomplete="off" hidden>
+      <input type="text" id="day-input" placeholder="Add something for this day…" maxlength="200" enterkeyhint="done">
+      <button type="submit" class="btn primary">Add</button>
+    </form>
   </section>
 
   <!-- Day complete: the flame flares up -->
@@ -471,7 +491,7 @@
             <li>A day you skip or leave empty breaks the streak, so plan at least one thing each day</li>
             <li>Every 7 days in a row earns a <b>❄️ freeze</b> that saves your streak if you miss a day</li>
             <li>Need a break? Make tomorrow a <b>😴 rest day</b> (1 per week)</li>
-            <li><b>Tap the 🔥</b> to see your calendar, best streak and stats</li>
+            <li><b>Tap the 🔥</b> to see your calendar and stats. Tap any day to look back or plan ahead</li>
           </ul>
         </div>
       </article>
