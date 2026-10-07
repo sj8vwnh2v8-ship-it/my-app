@@ -803,3 +803,19 @@ button.pressed, .chip.pressed {
 .day-mark.p-high { color: var(--high); }
 .day-mark.p-med { color: var(--med); }
 .day-mark.p-low { color: var(--low); }
+
+/* Tour: calendar + reminder mock */
+.m-month { width: 100%; max-width: 300px; background: var(--surface); color: var(--text); border-radius: 12px; padding: 10px 12px 12px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18); }
+.m-month-head { display: flex; justify-content: space-between; align-items: center; font-size: 14px; margin-bottom: 8px; color: var(--muted); }
+.m-month-head b { color: var(--text); }
+.m-month-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
+.m-month-grid i { aspect-ratio: 1; border-radius: 6px; background: var(--surface-2); position: relative; }
+.m-month-grid i.c { background: var(--accent); }
+.m-month-grid i.p { background: color-mix(in srgb, var(--accent) 30%, var(--surface-2)); }
+.m-month-grid i.t { box-shadow: 0 0 0 2px var(--text); }
+.m-month-grid i.pl::after { content: ''; position: absolute; left: 50%; bottom: 3px; width: 4px; height: 4px; margin-left: -2px; border-radius: 50%; background: var(--accent); }
+.m-month-grid i.sel { box-shadow: 0 0 0 2px var(--accent); }
+.m-note { width: 100%; max-width: 300px; display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 14px; background: rgba(255, 255, 255, 0.92); color: #1b1d22; font-size: 14px; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25); }
+.m-note-icon { width: 30px; height: 30px; border-radius: 8px; background: var(--accent); display: grid; place-items: center; flex: none; font-size: 15px; }
+.m-note em { display: block; font-style: normal; font-size: 12px; color: #6b6f78; }
+@media (prefers-color-scheme: dark) { .m-month { box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1); } }
